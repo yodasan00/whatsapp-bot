@@ -11,7 +11,8 @@ const ADMIN_COMMANDS = [
   'mute',
   'unmute',
   'adminonly',
-  'adminall'
+  'adminall',
+  'tagall'
 ]
 
 async function handleAdminCommand({ command, sock, jid, msg }) {
@@ -104,6 +105,18 @@ async function handleAdminCommand({ command, sock, jid, msg }) {
       })
       return true
     }
+
+    case 'tagall': {
+      const members = metadata.participants.map(p => p.id)
+
+      await sock.sendMessage(jid, {
+        text: '📢 Attention everyone!',
+        mentions: members
+      })
+
+      return true
+    }
+
   }
 
   return true

@@ -1,4 +1,5 @@
 const { activeGames } = require('../state/activeGames')
+const { addXP } = require('../state/xp') // ⭐ ADD THIS
 
 async function startGuessGame({ sock, jid }) {
   const answer = Math.floor(Math.random() * 10) + 1
@@ -39,11 +40,15 @@ async function handleGuessReply({ sock, msg, jid }) {
     return true
   }
 
-  // Correct guess
+  // 🎉 Correct guess
   const winner = msg.key.participant || msg.key.remoteJid
 
+  // ⭐ GIVE XP (you can change amount)
+  const xpGained = 7
+  const totalXP = addXP(jid, winner, xpGained)
+
   await sock.sendMessage(jid, {
-    text: `🎉 Correct! <@${winner.split('@')[0]}> wins!`,
+    text: `🎉 Correct! <@${winner.split('@')[0]}> wins!\n+${xpGained} XP 🧠 (Total: ${totalXP})`,
     mentions: [winner]
   })
 

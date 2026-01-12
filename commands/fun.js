@@ -1,3 +1,4 @@
+const axios = require('axios')
 const { startGuessGame } = require('../games/guessNumber')
 const { getXP, getLeaderboard } = require('../state/xp')
 const { addXP } = require('../state/xp')
@@ -197,13 +198,104 @@ fish: async ({ sock, jid, sender }) => {
   })
 },
 
+  play: async ({ sock, jid, args, sender }) => {
+  if (!args.length) {
+    await sock.sendMessage(jid, {
+      text: '❌ Usage: *.play <song name> <artist (optional)>*'
+    })
+    return
+  }
+
+  const query = args.join(' ')
+  const API_BASE = 'https://music.yaadosan.in'
+
+  let song
+
+  /* ---------- SEARCH ---------- */
+  try {
+    console.log('[PLAY] Searching:', query)
+
+    const res = await axios.post(
+      `${API_BASE}/search`,
+      { query },
+      { timeout: 15000 }
+    )
+
+    song = res.data
+    console.log('[PLAY] Search OK:', song.title, '-', song.artist)
+  } catch (e) {
+    console.error('[PLAY] Search failed', e?.response?.status)
+    await sock.sendMessage(jid, { text: '❌ Song not found.' })
+    return
+  }
+
+  /* ---------- SEND METADATA ---------- */
+  await sock.sendMessage(jid, {
+    text:
+`🎵 *Now Playing*
+*Title:* ${song.title}
+*Artist:* ${song.artist}
+
+⏳ Downloading audio...`
+  })
+
+  /* ---------- DOWNLOAD AUDIO ---------- */
+  let audioBuffer
+
+  try {
+    console.log('[PLAY] Downloading audio…')
+
+    const audioRes = await axios.post(
+      `${API_BASE}/download/voice`,
+      { query },
+      {
+        responseType: 'arraybuffer',
+        timeout: 120000,
+        headers: { 'Content-Type': 'application/json' }
+      }
+    )
+
+    audioBuffer = Buffer.from(audioRes.data)
+
+    console.log('[PLAY] Download OK')
+    console.log('[PLAY] Buffer size:', audioBuffer.length, 'bytes')
+  } catch (e) {
+    console.error('[PLAY] Download failed', e?.response?.status)
+    await sock.sendMessage(jid, { text: '❌ Failed to download audio.' })
+    return
+  }
+
+  /* ---------- SIZE CHECK ---------- */
+  if (!audioBuffer || audioBuffer.length === 0) {
+    console.error('[PLAY] Empty audio buffer')
+    await sock.sendMessage(jid, { text: '❌ Download returned empty audio.' })
+    return
+  }
+
+  /* ---------- SEND AUDIO (SAFE) ---------- */
+    /* ---------- SEND AUDIO (DOCUMENT – WHATSAPP SAFE) ---------- */
+    console.log('[PLAY] Sending as WhatsApp voice note')
+  try{
+    await sock.sendMessage(jid, {
+      audio: audioBuffer,
+      mimetype: 'audio/ogg; codecs=opus',
+      ptt: true
+    })
+
+
+  } catch (err) {
+    console.error('[PLAY] sendMessage failed', err)
+
+    await sock.sendMessage(jid, {
+      text: '❌ Failed to send audio file.'
+    })
+  }
+},
 
 
 
 
 
-
-  
 
 
 
@@ -212,8 +304,11 @@ fish: async ({ sock, jid, sender }) => {
     await sock.sendMessage(jid, {
       text:
   `🤖 *Yaadobot MENU*
-  created by @yaaad
-
+  created by @yaad v1.1
+  Still in development
+  It is Hosted in a crappy Home Server. Sometimes the bot maybe be down.
+  Who cares lol!
+---------~~~~~~~~------~~~~~-------~~~~~~~------~~~~~~~---
   ━━━━━━━━━━
   🎲 *FUN Stuffs*
   ━━━━━━━━━━
@@ -229,6 +324,7 @@ fish: async ({ sock, jid, sender }) => {
   .truthmeter
   .xp
   .leaderboard
+  .play <song_name> <Artist optional>
 
   ━━━━━━━━━━
   🎮 *GAMES*
@@ -272,7 +368,7 @@ fish: async ({ sock, jid, sender }) => {
   • Some commands need extra input
     Example:
     .rate my sleep schedule
-    .explainlikeim5 blockchain
+    .rps rock
 
   • Some commands must be used as a reply
     – .roast
