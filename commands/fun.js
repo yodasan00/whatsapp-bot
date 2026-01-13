@@ -295,6 +295,56 @@ play: async ({ sock, jid, args }) => {
     })
   }
 },
+
+lyrics: async ({ sock, jid, args }) => {
+  if (!args.length) {
+    await sock.sendMessage(jid, {
+      text: '❌ Usage: *.lyrics <song name> <artist optional>*'
+    })
+    return
+  }
+
+  const query = args.join(' ')
+  const API_BASE = 'http://127.0.0.1:8888'
+
+  try {
+    const res = await axios.get(`${API_BASE}/api/v2/lyrics`, {
+      params: {
+        platform: 'youtube',
+        title: query
+      },
+      timeout: 15000
+    })
+
+    const data = res.data?.data
+
+    if (!data || !data.lyrics) {
+      await sock.sendMessage(jid, {
+        text: '😔 Lyrics not found.'
+      })
+      return
+    }
+
+    // WhatsApp safe length
+    const lyrics = data.lyrics.slice(0, 3500)
+
+    await sock.sendMessage(jid, {
+      text:
+`🎵 *${data.trackName}*
+👤 ${data.artistName}
+
+${lyrics}`
+    })
+
+  } catch (err) {
+    console.error('Lyrics error:', err.message)
+    await sock.sendMessage(jid, {
+      text: '⚠️ Lyrics service failed.'
+    })
+  }
+},
+
+
   menu: async ({ sock, jid }) => {
     await sock.sendMessage(jid, {
       text:
@@ -319,6 +369,7 @@ play: async ({ sock, jid, args }) => {
   .truthmeter
   .play <song_name> <Artist optional> (universal)
   .plays <song_name> <Artist optional> (Android only)
+  .lyrics <song_name> <Artist optional>
 
   ━━━━━━━━━━
   🎮 *GAMES* (provides xp)
