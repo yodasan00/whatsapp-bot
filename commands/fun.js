@@ -3,6 +3,8 @@ const { startGuessGame } = require('../games/guessNumber')
 const { getXP, getLeaderboard } = require('../state/xp')
 const { addXP } = require('../state/xp')
 const { isOnCooldown } = require('../state/cooldown')
+const { enqueue } = require('../handlers/playQueue')
+
 
 
 const commands = {
@@ -198,113 +200,106 @@ fish: async ({ sock, jid, sender }) => {
   })
 },
 
-  play: async ({ sock, jid, args, sender }) => {
+plays: async ({ sock, jid, args }) => {
   if (!args.length) {
     await sock.sendMessage(jid, {
-      text: '❌ Usage: *.play <song name> <artist (optional)>*'
+      text: '❌ Usage: *.play <song name>*'
     })
     return
   }
 
   const query = args.join(' ')
-  const API_BASE = 'https://music.yaadosan.in'
+  const API_BASE = 'http://127.0.0.1:5000'
 
-  let song
+  const position = await enqueue(jid, async () => {
+    let song
 
-  /* ---------- SEARCH ---------- */
-  try {
-    console.log('[PLAY] Searching:', query)
-
-    const res = await axios.post(
-      `${API_BASE}/search`,
-      { query },
-      { timeout: 15000 }
-    )
-
+    /* SEARCH */
+    const res = await axios.post(`${API_BASE}/search`, { query })
     song = res.data
-    console.log('[PLAY] Search OK:', song.title, '-', song.artist)
-  } catch (e) {
-    console.error('[PLAY] Search failed', e?.response?.status)
-    await sock.sendMessage(jid, { text: '❌ Song not found.' })
-    return
-  }
 
-  /* ---------- SEND METADATA ---------- */
-  await sock.sendMessage(jid, {
-    text:
-`🎵 *Now Playing*
-*Title:* ${song.title}
-*Artist:* ${song.artist}
+    await sock.sendMessage(jid, {
+      text:
+`🎵 *Now Playing:*
+  *Title:* ${song.title}
+  *Artist:* ${song.artist}`
+    })
 
-⏳ Downloading audio...`
-  })
-
-  /* ---------- DOWNLOAD AUDIO ---------- */
-  let audioBuffer
-
-  try {
-    console.log('[PLAY] Downloading audio…')
-
+    /* DOWNLOAD OGG */
     const audioRes = await axios.post(
       `${API_BASE}/download/voice`,
       { query },
-      {
-        responseType: 'arraybuffer',
-        timeout: 120000,
-        headers: { 'Content-Type': 'application/json' }
-      }
+      { responseType: 'arraybuffer', timeout: 120000 }
     )
 
-    audioBuffer = Buffer.from(audioRes.data)
+    const audioBuffer = Buffer.from(audioRes.data)
 
-    console.log('[PLAY] Download OK')
-    console.log('[PLAY] Buffer size:', audioBuffer.length, 'bytes')
-  } catch (e) {
-    console.error('[PLAY] Download failed', e?.response?.status)
-    await sock.sendMessage(jid, { text: '❌ Failed to download audio.' })
-    return
-  }
-
-  /* ---------- SIZE CHECK ---------- */
-  if (!audioBuffer || audioBuffer.length === 0) {
-    console.error('[PLAY] Empty audio buffer')
-    await sock.sendMessage(jid, { text: '❌ Download returned empty audio.' })
-    return
-  }
-
-  /* ---------- SEND AUDIO (SAFE) ---------- */
-    /* ---------- SEND AUDIO (DOCUMENT – WHATSAPP SAFE) ---------- */
-    console.log('[PLAY] Sending as WhatsApp voice note')
-  try{
     await sock.sendMessage(jid, {
       audio: audioBuffer,
       mimetype: 'audio/ogg; codecs=opus',
       ptt: true
     })
+  })
 
-
-  } catch (err) {
-    console.error('[PLAY] sendMessage failed', err)
-
+  if (position > 1) {
     await sock.sendMessage(jid, {
-      text: '❌ Failed to send audio file.'
+      text: `⏳ Added to queue (position ${position})`
     })
   }
 },
 
+play: async ({ sock, jid, args }) => {
+  if (!args.length) {
+    await sock.sendMessage(jid, {
+      text: '❌ Usage: *.plays <song name>*'
+    })
+    return
+  }
 
+  const query = args.join(' ')
+  const API_BASE = 'http://127.0.0.1:5000'
 
+  const position = await enqueue(jid, async () => {
+    let song
 
+    /* SEARCH */
+    const res = await axios.post(`${API_BASE}/search`, { query })
+    song = res.data
 
+    await sock.sendMessage(jid, {
+      text:
+`🎵 *Now Playing:*
+  *Title:* ${song.title}
+  *Artist:* ${song.artist}`
+    })
 
+    /* DOWNLOAD M4A */
+    const audioRes = await axios.post(
+      `${API_BASE}/download/m4a`,
+      { query },
+      { responseType: 'arraybuffer', timeout: 180000 }
+    )
 
+    const audioBuffer = Buffer.from(audioRes.data)
 
+    await sock.sendMessage(jid, {
+      audio: audioBuffer,
+      mimetype: 'audio/mp4',
+      ptt: false
+    })
+  })
 
+  if (position > 1) {
+    await sock.sendMessage(jid, {
+      text: `⏳ Added to queue (position ${position})`
+    })
+  }
+},
   menu: async ({ sock, jid }) => {
     await sock.sendMessage(jid, {
       text:
   `🤖 *Yaadobot MENU*
-  created by @yaad v1.1
+  created by @yaad v1.2
   Still in development
   It is Hosted in a crappy Home Server. Sometimes the bot maybe be down.
   Who cares lol!
@@ -322,13 +317,14 @@ fish: async ({ sock, jid, sender }) => {
   .roast
   .iqtest
   .truthmeter
-  .xp
-  .leaderboard
-  .play <song_name> <Artist optional>
+  .play <song_name> <Artist optional> (universal)
+  .plays <song_name> <Artist optional> (Android only)
 
   ━━━━━━━━━━
-  🎮 *GAMES*
+  🎮 *GAMES* (provides xp)
   ━━━━━━━━━━
+  .xp
+  .leaderboard
   .truth
   .dare
   .guess
@@ -337,10 +333,20 @@ fish: async ({ sock, jid, sender }) => {
   .dig
   .fish
   .unscramble
+  ━━━━━━━━━━
+  ℹ️ Type *.help* to learn how to use commands.
+  .admin for admin commands in groups.(make the bot admin first)
+  ━━━━━━━━━━
+  😌update Log: Added .play command for cross compatible music playback.
+  .plays is still available but .play is recommended now.
+  `
+    })
+  },
 
-  ━━━━━━━━━━
-  🛡️ *ADMIN (GROUP ONLY)*
-  ━━━━━━━━━━
+  admin: async ({ sock, jid }) => {
+    await sock.sendMessage(jid, {
+      text: 
+  `🛡️ *ADMIN COMMANDS*
   .admins
   .disable
   .enable
@@ -349,11 +355,7 @@ fish: async ({ sock, jid, sender }) => {
   .unmute <user>
   .adminonly
   .adminall
-  .tagall
-
-  ━━━━━━━━━━
-  ℹ️ Type *.help* to learn how to use commands
-  `
+  .tagall`
     })
   },
 
@@ -362,6 +364,7 @@ fish: async ({ sock, jid, sender }) => {
       text:
   `ℹ️ *HOW TO USE THE BOT*
 
+  – Use .menu to see available commands.
   • Commands start with a dot (.)
     Example: .dice
 
@@ -385,12 +388,11 @@ fish: async ({ sock, jid, sender }) => {
   • If something doesn’t work:
     – Check spelling
     – Try replying correctly
-    – Use .menu to see available commands
 
   Keep it fun. Don’t spam. 😌
   `
     })
-  }
+  },
 
 
 
@@ -401,7 +403,7 @@ async function handleFunCommand({ command, args, sock, jid, sender }) {
 
   if (!handler) {
     await sock.sendMessage(jid, {
-      text: `Unknown command 🤔\nTry .help`
+      text: `Unknown command 🤔\nTry .menu`
     })
     return true
   }
