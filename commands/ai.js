@@ -123,6 +123,27 @@ async function handleAICommand({ command, args, sock, jid, msg }) {
       return true
     }
 
+    case 'explain': {
+      if (args.length === 0) {
+        await sock.sendMessage(jid, {
+          text: 'Explain *what* exactly? Usage: .explain <topic>'
+        })
+        return true
+      }
+
+      const topic = args.join(' ')
+      await sock.sendMessage(jid, { text: `🧠 Thinking about *${topic}*...` })
+      
+      const reply = await aiCommand(
+        jid,
+        `Explain "${topic}" in depth and detail. Break it down into clear sections if needed.`
+      )
+
+      if (reply) await sock.sendMessage(jid, { text: reply })
+      else await sock.sendMessage(jid, { text: '😴 AI is sleeping. Try again later.' })
+      return true
+    }
+
     case 'truth': {
         const reply = await aiCommand(
             jid,
