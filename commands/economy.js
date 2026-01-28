@@ -15,13 +15,19 @@ const commands = {
         text += 'Earn XP by playing games! (.guess, .rps, .fish, .dig)\n\n'
         
         // Web Shop Link
-        // context = jid (group or user), user = sender
+        // Ensure WEB_URL is loaded correctly
         const baseUrl = process.env.WEB_URL || 'http://localhost:3000'
         const link = `${baseUrl}/?user=${encodeURIComponent(sender)}&context=${encodeURIComponent(jid)}`
         
-        text += `🌐 *Visit the Web Shop:*\n${link}`
+        // Send DM
+        await sock.sendMessage(sender, { 
+            text: `🛒 *Your Shop Link:*\n${link}\n\n(Click to view your inventory)` 
+        })
 
-        await sock.sendMessage(jid, { text })
+        // If in group, notify
+        if (jid.endsWith('@g.us')) {
+            await sock.sendMessage(jid, { text: '📩 Sent you the shop link via DM!' })
+        }
     },
 
     buy: async ({ sock, jid, sender, args }) => {

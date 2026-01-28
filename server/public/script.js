@@ -12,7 +12,7 @@ const shopGrid = document.getElementById('shopGrid');
 const toastEl = document.getElementById('toast');
 
 if (!userJid) {
-    document.body.innerHTML = '<div style="color:white; text-align:center; padding:50px;">Missing User JID in URL. Please open link from WhatsApp.</div>';
+    document.body.innerHTML = '<div style="color:white; text-align:center; padding:50px; font-family:sans-serif;">Missing User JID in URL. Please open link from WhatsApp.<br><br>(Type <b>.shop</b> again)</div>';
 } else {
     init();
 }
@@ -27,6 +27,7 @@ async function init() {
 async function fetchUserData() {
     try {
         const res = await fetch(`${API_BASE}/api/user?jid=${userJid}&context=${context}`);
+        
         const data = await res.json();
         
         userJidEl.textContent = data.jid.split('@')[0];

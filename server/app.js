@@ -15,33 +15,13 @@ app.use(express.static(path.join(__dirname, 'public')))
 
 // API: Get User Data
 app.get('/api/user', (req, res) => {
-    const { jid } = req.query
-    if (!jid) return res.status(400).json({ error: 'Missing jid' }) // Simple check
+    const { jid, context } = req.query
+    if (!jid) return res.status(400).json({ error: 'Missing jid' }) 
 
-    // In a real app, we'd want better auth. 
-    // Here we rely on the link being private.
-    const xp = getXP(jid, jid) // jid is passed as both group/user for now? Or wait, getXP takes (jid, userJid)
-    // Wait, getXP(jid, userJid) -> `jid:userJid` key.
-    // If we are in DM, jid=userJid.
-    // Let's assume the link passes just the user JID and we treat it as a DM context or global user context.
+    const targetContext = context || jid
     
-    // Actually, getXP uses `key(jid, userJid)`.
-    // If we want a global inventory/xp, we might have an issue if it's per-group.
-    // The current bot implementation seems to store XP per group-user pair: `${jid}:${userJid}`
-    // So if I play in Group A, I have XP there. If I play in DM, I have XP there.
-    
-    // For the web shop to work effectively, we might need to specify WHICH context.
-    // OR, we update the bot to have global XP? 
-    // The user didn't ask for global XP, so let's stick to the existing system.
-    // The link should probably include the Group JID (or 'context') and the User JID.
-    
-    // Format: /?user=...&context=...
-    // If context is missing, assume DM (context = user).
-    
-    const context = req.query.context || jid
-    
-    const xpVal = getXP(context, jid)
-    const inventory = getInventory(context, jid)
+    const xpVal = getXP(targetContext, jid)
+    const inventory = getInventory(targetContext, jid)
     
     res.json({ jid, context, xp: xpVal, inventory })
 })
@@ -56,7 +36,7 @@ app.post('/api/buy', (req, res) => {
     const { jid, context, itemId } = req.body
     
     if (!jid || !itemId) return res.status(400).json({ error: 'Missing data' })
-    
+
     const targetContext = context || jid
     const item = getItem(itemId)
     
