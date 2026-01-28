@@ -270,13 +270,19 @@ leaderboard: async ({ sock, jid }) => {
   // Normal XP
   const inv = getInventory(jid, sender)
   const hasMultiplier = inv.diamond || inv.mvp_badge
+  const hasShovel = inv.golden_shovel
   
   let xp = Math.floor(Math.random() * 6) + 1
   let multiplierText = ''
   
+  if (hasShovel) {
+      xp = Math.floor(Math.random() * 21) + 10 // 10-30 XP
+      multiplierText = '\n🌟 *Golden Shovel Power!*'
+  }
+  
   if (hasMultiplier) {
       xp = Math.ceil(xp * 1.5)
-      multiplierText = '\n💎 *XP Boost Active!*'
+      multiplierText += ' (Diamond Boost)'
   }
 
   const total = addXP(jid, sender, xp)
@@ -307,25 +313,44 @@ fish: async ({ sock, jid, sender }) => {
   }
 
   // Drop logic
+  const inv = getInventory(jid, sender)
+  const hasRod = inv.fishing_rod
+
   const roll = Math.random()
-  if (roll < 0.05) { // 5% chance for Treasure Chest
+  
+  // Base Rates
+  let chestRate = 0.05 // 5%
+  let bootRate = 0.25 // 20% (minus chest rate)
+  let rodText = ''
+
+  if (hasRod) {
+      chestRate = 0.15 // 15% with rod
+      bootRate = 0.10 // Less boot chance
+      rodText = '\n🎣 *Rod Luck!*'
+  }
+
+  if (roll < chestRate) { 
       addItem(jid, sender, 'treasure_chest')
       await sock.sendMessage(jid, {
-          text: `🎣 You feel a heavy tug...\n💰 HOLY MOLY! You caught a *Treasure Chest*!\n(Use .sell treasure_chest for major XP!)`
+          text: `🎣 You feel a heavy tug...${rodText}\n💰 HOLY MOLY! You caught a *Treasure Chest*!\n(Use .sell treasure_chest for major XP!)`
       })
       return
   }
   
-  if (roll < 0.25) { // 20% chance (0.05 to 0.25) for Old Boot
+  // Boot range: [chestRate, chestRate + bootRate]
+  // if bootRate is 0.20, and chestRate is 0.05, boots are 0.05 to 0.25
+  // if rod: chest 0.15. Boots 0.10. range 0.15 to 0.25. (Reduced boot chance effectively)
+  
+  if (roll < (chestRate + bootRate) && roll >= chestRate) { 
       addItem(jid, sender, 'old_boot')
       await sock.sendMessage(jid, {
-          text: `🎣 You reel it in...\n👢 It's just an *Old Boot*.\n(Better than nothing?)`
+          text: `🎣 You reel it in...${rodText}\n👢 It's just an *Old Boot*.\n(Better than nothing?)`
       })
       return
   }
 
 
-  const inv = getInventory(jid, sender)
+  // Re-use inv from above
   const hasMultiplier = inv.diamond || inv.mvp_badge
   
   let xp = Math.floor(Math.random() * 7) + 2
@@ -355,33 +380,44 @@ plays: async ({ sock, jid, args }) => {
   const API_BASE = 'https://music.yaadosan.in'
 
   const position = await enqueue(jid, async () => {
-    let song
+    try {
+        let song
+        /* SEARCH */
+        const res = await axios.post(`${API_BASE}/search`, { query }, { timeout: 10000 })
+        song = res.data
 
-    /* SEARCH */
-    const res = await axios.post(`${API_BASE}/search`, { query })
-    song = res.data
+        if (!song || !song.title) {
+            throw new Error('Song not found')
+        }
 
-    await sock.sendMessage(jid, {
-      text:
-`🎵 *Now Playing:*
-  *Title:* ${song.title}
-  *Artist:* ${song.artist}`
-    })
+        await sock.sendMessage(jid, {
+            text: `🎵 *Now Playing:* \n*Title:* ${song.title}\n*Artist:* ${song.artist}`
+        })
 
-    /* DOWNLOAD OGG */
-    const audioRes = await axios.post(
-      `${API_BASE}/download/voice`,
-      { query },
-      { responseType: 'arraybuffer', timeout: 120000 }
-    )
+        /* DOWNLOAD OGG */
+        const audioRes = await axios.post(
+            `${API_BASE}/download/voice`,
+            { query },
+            { responseType: 'arraybuffer', timeout: 120000 }
+        )
 
-    const audioBuffer = Buffer.from(audioRes.data)
+        const audioBuffer = Buffer.from(audioRes.data)
 
-    await sock.sendMessage(jid, {
-      audio: audioBuffer,
-      mimetype: 'audio/ogg; codecs=opus',
-      ptt: true
-    })
+        await sock.sendMessage(jid, {
+            audio: audioBuffer,
+            mimetype: 'audio/ogg; codecs=opus',
+            ptt: true
+        })
+
+    } catch (err) {
+        console.error('Plays error:', err.message)
+        let msg = '⚠️ Failed to play song.'
+        if (err.message.includes('404') || err.message === 'Song not found') msg = '❌ Song not found.'
+        else if (err.code === 'ECONNABORTED') msg = '⏳ Request timed out. Server is slow.'
+        else if (err.message.includes('500')) msg = '🔥 Music server error.'
+        
+        await sock.sendMessage(jid, { text: msg })
+    }
   })
 
   if (position > 1) {
@@ -403,33 +439,44 @@ play: async ({ sock, jid, args }) => {
   const API_BASE = 'https://music.yaadosan.in'
 
   const position = await enqueue(jid, async () => {
-    let song
+    try {
+        let song
+        /* SEARCH */
+        const res = await axios.post(`${API_BASE}/search`, { query }, { timeout: 10000 })
+        song = res.data
+        
+        if (!song || !song.title) {
+            throw new Error('Song not found')
+        }
 
-    /* SEARCH */
-    const res = await axios.post(`${API_BASE}/search`, { query })
-    song = res.data
+        await sock.sendMessage(jid, {
+            text: `🎵 *Now Playing:* \n*Title:* ${song.title}\n*Artist:* ${song.artist}`
+        })
 
-    await sock.sendMessage(jid, {
-      text:
-`🎵 *Now Playing:*
-  *Title:* ${song.title}
-  *Artist:* ${song.artist}`
-    })
+        /* DOWNLOAD M4A */
+        const audioRes = await axios.post(
+            `${API_BASE}/download/m4a`,
+            { query },
+            { responseType: 'arraybuffer', timeout: 180000 }
+        )
 
-    /* DOWNLOAD M4A */
-    const audioRes = await axios.post(
-      `${API_BASE}/download/m4a`,
-      { query },
-      { responseType: 'arraybuffer', timeout: 180000 }
-    )
+        const audioBuffer = Buffer.from(audioRes.data)
 
-    const audioBuffer = Buffer.from(audioRes.data)
+        await sock.sendMessage(jid, {
+            audio: audioBuffer,
+            mimetype: 'audio/mp4',
+            ptt: false
+        })
 
-    await sock.sendMessage(jid, {
-      audio: audioBuffer,
-      mimetype: 'audio/mp4',
-      ptt: false
-    })
+    } catch (err) {
+        console.error('Play error:', err.message)
+        let msg = '⚠️ Failed to play music.'
+        if (err.message.includes('404') || err.message === 'Song not found') msg = '❌ Song not found. Try a different name.'
+        else if (err.code === 'ECONNABORTED') msg = '⏳ Request timed out. The song is too large or server is busy.'
+        else if (err.message.includes('500')) msg = '🔥 Music server error. Try again later.'
+        
+        await sock.sendMessage(jid, { text: msg })
+    }
   })
 
   if (position > 1) {

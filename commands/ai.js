@@ -37,6 +37,7 @@ async function handleAICommand({ command, args, sock, jid, msg }) {
         'Tell a clever, nerdy dad joke. Keep it short.'
       )
       if (reply) await sock.sendMessage(jid, { text: reply })
+      else await sock.sendMessage(jid, { text: '😴 AI is sleeping. Try again later.' })
       return true
     }
 
@@ -53,6 +54,7 @@ async function handleAICommand({ command, args, sock, jid, msg }) {
       )
 
       if (reply) await sock.sendMessage(jid, { text: reply })
+      else await sock.sendMessage(jid, { text: '😴 AI is sleeping. Try again later.' })
       return true
     }
 
@@ -94,6 +96,8 @@ async function handleAICommand({ command, args, sock, jid, msg }) {
             },
             { quoted: msg }
             )
+        } else {
+             await sock.sendMessage(jid, { text: '😴 AI is too nice to roast right now.' })
         }
 
         return true
@@ -115,6 +119,7 @@ async function handleAICommand({ command, args, sock, jid, msg }) {
       )
 
       if (reply) await sock.sendMessage(jid, { text: reply })
+      else await sock.sendMessage(jid, { text: '😴 AI is napping. Shhh.' })
       return true
     }
 
@@ -134,6 +139,8 @@ async function handleAICommand({ command, args, sock, jid, msg }) {
             { text: `🟦 TRUTH:\n${reply}` },
             { quoted: msg }
             )
+        } else {
+            await sock.sendMessage(jid, { text: '⚠️ Failed to get a Truth question.' })
         }
         return true
     }
@@ -154,6 +161,8 @@ async function handleAICommand({ command, args, sock, jid, msg }) {
             { text: `🟥 DARE:\n${reply}` },
             { quoted: msg }
             )
+        } else {
+             await sock.sendMessage(jid, { text: '⚠️ Failed to get a Dare.' })
         }
         return true
     }
@@ -192,6 +201,8 @@ async function handleAICommand({ command, args, sock, jid, msg }) {
             { text: `⚖️ VERDICT:\n${reply}` },
             { quoted: msg }
             )
+        } else {
+             await sock.sendMessage(jid, { text: '😴 The Judge is on a coffee break.' })
         }
         return true
     }

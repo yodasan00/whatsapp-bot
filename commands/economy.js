@@ -113,7 +113,7 @@ const commands = {
         let response = ''
         
         if (itemId === 'cookie') {
-            const xpGain = Math.floor(Math.random() * 41) + 10 // 10-50 XP
+            const xpGain = Math.floor(Math.random() * 101) + 50 // 50-150 XP (Buffed)
             addXP(jid, sender, xpGain)
             response = `🍪 You ate the cookie.\n😋 It was delicious! (+${xpGain} XP)`
             
@@ -122,11 +122,34 @@ const commands = {
             resetCooldown(jid, sender, 'fish')
             // Add other cooldowns here if they exist
             response = `☕ You drank the coffee.\n⚡ You feel energized! Cooldowns reset.`
+
+        } else if (itemId === 'energy_drink') {
+            resetCooldown(jid, sender, 'dig')
+            resetCooldown(jid, sender, 'fish')
+            addXP(jid, sender, 50)
+            response = `🥤 You chugged the Energy Drink!\n⚡ Cooldowns reset & +50 XP!`
             
-        } else if (itemId === 'diamond' || itemId === 'mvp_badge' || itemId === 'shield') {
+        } else if (itemId === 'mystery_box') {
+            const roll = Math.random()
+            if (roll < 0.5) { // 50% XP
+                const xp = Math.floor(Math.random() * 900) + 100
+                addXP(jid, sender, xp)
+                response = `📦 You opened the box...\n✨ It contained *${xp} XP*!`
+            } else if (roll < 0.85) { // 35% Trash
+                addItem(jid, sender, 'trash')
+                response = `📦 You opened the box...\n🗑️ It was just some *Trash*.`
+            } else if (roll < 0.95) { // 10% Gold Coin
+                addItem(jid, sender, 'golden_coin')
+                response = `📦 You opened the box...\n🪙 WOW! A *Golden Coin*!`
+            } else { // 5% Diamond
+                addItem(jid, sender, 'diamond')
+                response = `📦 You opened the box...\n💎 JACKPOT! You found a *Diamond*!`
+            }
+
+        } else if (itemId === 'diamond' || itemId === 'mvp_badge' || itemId === 'shield' || itemId === 'fishing_rod' || itemId === 'ban_hammer' || itemId === 'golden_shovel' || itemId === 'car_keys' || itemId === 'mansion_deed') {
              // Permanent items, give them back
              addItem(jid, sender, itemId) 
-             response = `✨ You inspected your *${item.name}*.\nIt shines brilliantly. Everyone is jealous.\n(This item is permanent)`
+             response = `✨ You inspected your *${item.name}*.\n${item.description}\n(This item is permanent)`
         } else {
              response = `✨ You used *${item.name}*.\n(It didn't do much, but it's gone now.)`
         }

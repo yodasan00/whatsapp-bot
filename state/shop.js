@@ -4,28 +4,77 @@ const shopItems = [
         name: '🍪 Cookie', 
         price: 50,
         sellPrice: 25, 
-        description: 'A tasty snack. Yum!' 
+        description: 'Eat to gain 50-150 XP instantly. (Yummy!)' 
     },
     { 
         id: 'coffee', 
         name: '☕ Coffee', 
         price: 80, 
         sellPrice: 40,
-        description: 'Wake up and code!' 
+        description: 'Resets all game cooldowns instantly.' 
+    },
+    {
+        id: 'energy_drink',
+        name: '🥤 Energy Drink',
+        price: 200,
+        sellPrice: 100,
+        description: 'Resets cooldowns + gives 50 XP boost.'
+    },
+    { 
+        id: 'mystery_box', 
+        name: '📦 Mystery Box', 
+        price: 500, 
+        sellPrice: 0,
+        description: 'Random reward! Can be XP, cash, or trash.' 
+    },
+    { 
+        id: 'fishing_rod', 
+        name: '🎣 Fishing Rod', 
+        price: 2000, 
+        sellPrice: 1000,
+        description: 'Better chance to catch rare loot while fishing.' 
+    },
+    { 
+        id: 'golden_shovel', 
+        name: '🌟 Golden Shovel', 
+        price: 3000, 
+        sellPrice: 1500,
+        description: 'Digs up 3x more XP from the ground.' 
     },
     { 
         id: 'diamond', 
         name: '💎 Diamond', 
         price: 5000, 
         sellPrice: 2500,
-        description: 'The ultimate flex.' 
+        description: '+50% Passive XP Boost for games.' 
+    },
+    { 
+        id: 'car_keys', 
+        name: '🏎️ Car Keys', 
+        price: 50000, 
+        sellPrice: 25000,
+        description: 'Vroom vroom! You own a fast car. (Flex)' 
+    },
+    { 
+        id: 'mansion_deed', 
+        name: '🏰 Mansion Deed', 
+        price: 1000000, 
+        sellPrice: 500000,
+        description: 'You own the server now. (Ultimate Flex)' 
     },
     { 
         id: 'mvp_badge', 
         name: '👑 MVP Badge', 
         price: 1000, 
         sellPrice: 500,
-        description: 'Show everyone you are the best.' 
+        description: 'Show everyone you are the best (Passive +50% XP).' 
+    },
+    { 
+        id: 'ban_hammer', 
+        name: '🔨 Ban Hammer', 
+        price: 99999, 
+        sellPrice: 1,
+        description: 'The ultimate flex. Does absolutely nothing.' 
     },
     { 
         id: 'shield', 
