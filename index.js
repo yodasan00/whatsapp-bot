@@ -13,6 +13,7 @@ const { extractText } = require('./utils/extractText')
 const { shouldBotRespond } = require('./handlers/attention')
 const { handleFunCommand } = require('./commands/fun')
 const { handleAdminCommand } = require('./commands/admin')
+const { handleEconomyCommand } = require('./commands/economy')
 const { handleFunReactions } = require('./handlers/funReactions')
 const { handleGuessReply } = require('./games/guessNumber')
 const { aiReply } = require('./ai/responder')
@@ -21,6 +22,7 @@ const { addUserMessage } = require('./state/userHistory')
 const { getGame, endGame } = require('./state/guessGame')
 const { checkUnscramble, hasUnscramble } = require('./games/unscramble')
 const { addXP } = require('./state/xp')
+const { startServer } = require('./server/app')
 
 // ⭐ stanzaId tracker
 const { rememberBotMessage } = require('./state/botMessages')
@@ -119,6 +121,7 @@ async function startBot() {
       const command = args.shift().toLowerCase()
 
       if (await handleAdminCommand({ command, sock, jid, msg })) return
+      if (await handleEconomyCommand({ command, args, sock, jid, sender })) return
       if (await handleAICommand({ command, args, sock, jid, msg })) return
       if (await handleFunCommand({ command, args, sock, jid, sender })) return
     }
@@ -186,4 +189,5 @@ async function startBot() {
   })
 }
 
+startServer()
 startBot()

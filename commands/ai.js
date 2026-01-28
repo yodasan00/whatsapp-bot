@@ -4,6 +4,31 @@ const { startGame } = require('../state/guessGame')
 const { startUnscramble } = require('../games/unscramble')
 
 
+function parseAIResponse(text) {
+  if (!text) return null
+  try {
+    // 1. Try direct parse
+    return JSON.parse(text)
+  } catch (e) {
+    // 2. Try extracting from markdown code blocks
+    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/```\s*([\s\S]*?)\s*```/)
+    if (jsonMatch) {
+       try { return JSON.parse(jsonMatch[1]) } catch (e2) {}
+    }
+
+    // 3. Try finding first { and last } (brute force extraction)
+    const firstOpen = text.indexOf('{')
+    const lastClose = text.lastIndexOf('}')
+    if (firstOpen !== -1 && lastClose !== -1) {
+      try {
+        return JSON.parse(text.slice(firstOpen, lastClose + 1))
+      } catch (e3) {}
+    }
+    
+    return null
+  }
+}
+
 async function handleAICommand({ command, args, sock, jid, msg }) {
   switch (command) {
     case 'dadjoke': {
@@ -172,10 +197,17 @@ async function handleAICommand({ command, args, sock, jid, msg }) {
     }
 
     case 'guess': {
+        const categories = [
+          'Animal', 'Object', 'Food', 'Place', 'Famous Person',
+          'Movie', 'Book', 'Sport', 'Science', 'Technology'
+        ]
+        const randomCategory = categories[Math.floor(Math.random() * categories.length)]
+
         const reply = await aiCommand(
             jid,
             `
         Generate a guessing game.
+        Category: ${randomCategory}
         Respond in STRICT JSON only.
         No extra text.
 
@@ -191,13 +223,16 @@ async function handleAICommand({ command, args, sock, jid, msg }) {
             `.trim()
         )
 
-        let data
-        try {
-            data = JSON.parse(reply)
-        } catch {
-            await sock.sendMessage(jid, { text: 'Game failed. Try again.' })
+
+        const data = parseAIResponse(reply)
+        
+        if (!data) {
+            console.error('Failed to parse AI response:', reply)
+            await sock.sendMessage(jid, { text: 'Game failed (bad AI data). Try again.' })
             return true
         }
+
+
 
         const { hint, answers } = data
         if (!hint || !answers?.length) {
@@ -212,7 +247,7 @@ async function handleAICommand({ command, args, sock, jid, msg }) {
         )
 
         await sock.sendMessage(jid, {
-            text: `🎯 GUESSING GAME STARTED!\nHint: ${hint}\nReply with your guess.`
+            text: `🎯 GUESSING GAME STARTED!\nCategory: *${randomCategory}*\nHint: ${hint}\nReply with your guess.`
         })
 
         return true
@@ -220,15 +255,18 @@ async function handleAICommand({ command, args, sock, jid, msg }) {
 
 
     case 'unscramble': {
+        const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        const randomLetter = letters[Math.floor(Math.random() * letters.length)]
+
         const reply = await aiCommand(
             jid,
             `
-        Generate a word unscramble game.
+        Generate a word unscramble game using a word that starts with the letter "${randomLetter}".
         Respond in STRICT JSON only.
 
         {
-        "word": "computer",
-        "scrambled": "etpmuroc"
+        "word": "<word>",
+        "scrambled": "<scrambled_version>"
         }
 
         Rules:
@@ -238,13 +276,16 @@ async function handleAICommand({ command, args, sock, jid, msg }) {
             `.trim()
         )
 
-        let data
-        try {
-            data = JSON.parse(reply)
-        } catch {
-            await sock.sendMessage(jid, { text: 'Game failed. Try again.' })
+
+        const data = parseAIResponse(reply)
+
+        if (!data) {
+            console.error('Failed to parse AI response:', reply)
+            await sock.sendMessage(jid, { text: 'Game failed (bad AI data). Try again.' })
             return true
         }
+
+
 
         const { word, scrambled } = data
         if (!word || !scrambled) {

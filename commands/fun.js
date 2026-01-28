@@ -1,7 +1,11 @@
 const axios = require('axios')
+const fs = require('fs')
+const path = require('path')
+const gis = require('g-i-s')
 const { startGuessGame } = require('../games/guessNumber')
 const { getXP, getLeaderboard } = require('../state/xp')
 const { addXP } = require('../state/xp')
+const { addItem, getInventory } = require('../state/inventory')
 const { isOnCooldown } = require('../state/cooldown')
 const { enqueue } = require('../handlers/playQueue')
 
@@ -16,6 +20,86 @@ const commands = {
   coin: async ({ sock, jid }) => {
     const result = Math.random() < 0.5 ? 'Heads' : 'Tails'
     await sock.sendMessage(jid, { text: `🪙 ${result}` })
+  },
+
+  pic: async ({ sock, jid, args }) => {
+    if (!args.length) {
+      await sock.sendMessage(jid, { text: '🎨 Usage: .pic <description>' })
+      return
+    }
+
+    const prompt = args.join(' ')
+    const searchPrompt = `${prompt} aesthetic`
+    await sock.sendMessage(jid, { text: `🔍 Sending Images for: *${prompt}*...` })
+
+    try {
+        const results = await new Promise((resolve, reject) => {
+            gis(searchPrompt, (error, results) => {
+                if (error) reject(error)
+                else resolve(results)
+            })
+        })
+
+        if (!results || !results.length) {
+            await sock.sendMessage(jid, { text: '⚠️ No images found.' })
+            return
+        }
+
+        // Pick 4 random images from the top 15 to ensure relevance but variety
+        const topResults = results.slice(0, 15)
+        const selected = []
+        for (let i = 0; i < 4; i++) {
+            if (topResults.length === 0) break
+            const randomIndex = Math.floor(Math.random() * topResults.length)
+            selected.push(topResults[randomIndex])
+            topResults.splice(randomIndex, 1)
+        }
+
+        const tempDir = path.join(__dirname, '../temp')
+        if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true })
+        }
+
+        const promises = selected.map(async (imgData, i) => {
+            const url = imgData.url
+            const uniqueId = `${Date.now()}_${i}_${Math.random().toString(36).substring(7)}`
+            const filePath = path.join(tempDir, `img_${uniqueId}.jpg`)
+            
+            try {
+                const res = await axios.get(url, { 
+                    responseType: 'arraybuffer',
+                    timeout: 20000,
+                    headers: { 'User-Agent': 'Mozilla/5.0' } 
+                })
+                fs.writeFileSync(filePath, res.data)
+                
+                await sock.sendMessage(jid, { 
+                    image: { url: filePath }
+                })
+
+                // Delete immediately after send
+                if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+                return true
+
+            } catch (e) {
+                console.error(`Failed to image ${i}:`, e.message)
+                // Try to cleanup if file was created
+                if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+                return false
+            }
+        })
+
+        const sentResults = await Promise.all(promises)
+        const sentCount = sentResults.filter(s => s).length
+
+        if (sentCount === 0) {
+            await sock.sendMessage(jid, { text: '⚠️ Failed to grab any of the images. Try again.' })
+        }
+
+    } catch (e) {
+        console.error('GIS Error:', e)
+        await sock.sendMessage(jid, { text: '⚠️ Error searching for images.' })
+    }
   },
 
   '8ball': async ({ sock, jid }) => {
@@ -155,7 +239,7 @@ leaderboard: async ({ sock, jid }) => {
     return
   }
 
-  const found = Math.random() < 0.7 // 70% chance
+  const found = Math.random() < 0.7 // 70% chance to find something
 
   if (!found) {
     await sock.sendMessage(jid, {
@@ -164,11 +248,41 @@ leaderboard: async ({ sock, jid }) => {
     return
   }
 
-  const xp = Math.floor(Math.random() * 6) + 1
+  // Drop logic
+  const roll = Math.random()
+  if (roll < 0.1) { // 10% chance for Golden Coin
+      addItem(jid, sender, 'golden_coin')
+      await sock.sendMessage(jid, {
+          text: `🪨 You hit something hard...\n✨ It's a *Golden Coin*! 🪙\n(Use .sell golden_coin to get XP)`
+      })
+      return
+  }
+  
+  if (roll < 0.25) { // 15% chance (0.1 to 0.25) for Trash
+      addItem(jid, sender, 'trash')
+      await sock.sendMessage(jid, {
+          text: `🪨 You dig up...\n🗑️ Some *Trash*.\n(Maybe you can sell it?)`
+      })
+      return
+  }
+
+
+  // Normal XP
+  const inv = getInventory(jid, sender)
+  const hasMultiplier = inv.diamond || inv.mvp_badge
+  
+  let xp = Math.floor(Math.random() * 6) + 1
+  let multiplierText = ''
+  
+  if (hasMultiplier) {
+      xp = Math.ceil(xp * 1.5)
+      multiplierText = '\n💎 *XP Boost Active!*'
+  }
+
   const total = addXP(jid, sender, xp)
 
   await sock.sendMessage(jid, {
-    text: `🪨 You dig the ground...\n✨ Found *${xp} XP*\nTotal XP: *${total}*`
+    text: `🪨 You dig the ground...\n✨ Found *${xp} XP*${multiplierText}\nTotal XP: *${total}*`
   })
 },
 
@@ -192,11 +306,40 @@ fish: async ({ sock, jid, sender }) => {
     return
   }
 
-  const xp = Math.floor(Math.random() * 7) + 2
+  // Drop logic
+  const roll = Math.random()
+  if (roll < 0.05) { // 5% chance for Treasure Chest
+      addItem(jid, sender, 'treasure_chest')
+      await sock.sendMessage(jid, {
+          text: `🎣 You feel a heavy tug...\n💰 HOLY MOLY! You caught a *Treasure Chest*!\n(Use .sell treasure_chest for major XP!)`
+      })
+      return
+  }
+  
+  if (roll < 0.25) { // 20% chance (0.05 to 0.25) for Old Boot
+      addItem(jid, sender, 'old_boot')
+      await sock.sendMessage(jid, {
+          text: `🎣 You reel it in...\n👢 It's just an *Old Boot*.\n(Better than nothing?)`
+      })
+      return
+  }
+
+
+  const inv = getInventory(jid, sender)
+  const hasMultiplier = inv.diamond || inv.mvp_badge
+  
+  let xp = Math.floor(Math.random() * 7) + 2
+  let multiplierText = ''
+  
+  if (hasMultiplier) {
+      xp = Math.ceil(xp * 1.5)
+      multiplierText = '\n💎 *XP Boost Active!*'
+  }
+  
   const total = addXP(jid, sender, xp)
 
   await sock.sendMessage(jid, {
-    text: `🎣 You cast your line...\n🐟 Caught *${xp} XP*\nTotal XP: *${total}*`
+    text: `🎣 You cast your line...\n🐟 Caught *${xp} XP*${multiplierText}\nTotal XP: *${total}*`
   })
 },
 
@@ -209,7 +352,7 @@ plays: async ({ sock, jid, args }) => {
   }
 
   const query = args.join(' ')
-  const API_BASE = 'http://127.0.0.1:5000'
+  const API_BASE = 'https://music.yaadosan.in'
 
   const position = await enqueue(jid, async () => {
     let song
@@ -257,7 +400,7 @@ play: async ({ sock, jid, args }) => {
   }
 
   const query = args.join(' ')
-  const API_BASE = 'http://127.0.0.1:5000'
+  const API_BASE = 'https://music.yaadosan.in'
 
   const position = await enqueue(jid, async () => {
     let song
@@ -305,7 +448,7 @@ lyrics: async ({ sock, jid, args }) => {
   }
 
   const query = args.join(' ')
-  const API_BASE = 'http://127.0.0.1:8888'
+  const API_BASE = 'https://lyrics.yaadosan.in'
 
   try {
     const res = await axios.get(`${API_BASE}/api/v2/lyrics`, {
@@ -370,6 +513,7 @@ ${lyrics}`
   .play <song_name> <Artist optional> (universal)
   .plays <song_name> <Artist optional> (Android only)
   .lyrics <song_name> <Artist optional>
+  .pic <description>
 
   ━━━━━━━━━━
   🎮 *GAMES* (provides xp)
@@ -385,11 +529,19 @@ ${lyrics}`
   .fish
   .unscramble
   ━━━━━━━━━━
+  💰 *ECONOMY*
+  ━━━━━━━━━━
+  .shop
+  .buy <item>
+  .sell <item>
+  .inv / .inventory
+  .use <item>
+  ━━━━━━━━━━
   ℹ️ Type *.help* to learn how to use commands.
   .admin for admin commands in groups.(make the bot admin first)
   ━━━━━━━━━━
   😌update Log: Added .play command for cross compatible music playback.
-  .plays is still available but .play is recommended now.
+  .plays is still available(faster) but .play is recommended now.
   `
     })
   },

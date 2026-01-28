@@ -20,4 +20,9 @@ function isOnCooldown(jid, user, command, seconds) {
   return seconds - diff
 }
 
-module.exports = { isOnCooldown }
+function resetCooldown(jid, user, command) {
+  const key = `${jid}:${user}:${command}`
+  cooldowns.delete(key)
+}
+
+module.exports = { isOnCooldown, resetCooldown }

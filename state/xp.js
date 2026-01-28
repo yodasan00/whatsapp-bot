@@ -1,42 +1,4 @@
-// const xpStore = new Map()
-// // Structure:
-// // key: `${jid}:${userJid}`
-// // value: number
 
-// function getKey(jid, userJid) {
-//   return `${jid}:${userJid}`
-// }
-
-// function getXP(jid, userJid) {
-//   return xpStore.get(getKey(jid, userJid)) || 0
-// }
-
-// function addXP(jid, userJid, amount) {
-//   const key = getKey(jid, userJid)
-//   const current = getXP(jid, userJid)
-//   const updated = current + amount
-//   xpStore.set(key, updated)
-//   return updated
-// }
-
-// function getLeaderboard(jid) {
-//   const result = []
-
-//   for (const [key, xp] of xpStore.entries()) {
-//     if (key.startsWith(`${jid}:`)) {
-//       const userJid = key.split(':')[1]
-//       result.push({ userJid, xp })
-//     }
-//   }
-
-//   return result.sort((a, b) => b.xp - a.xp)
-// }
-
-// module.exports = {
-//   getXP,
-//   addXP,
-//   getLeaderboard
-// }
 
 const fs = require('fs')
 const path = require('path')
