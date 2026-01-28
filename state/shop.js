@@ -4,26 +4,26 @@ const shopItems = [
         name: '🍪 Cookie', 
         price: 50,
         sellPrice: 25, 
-        description: 'Eat to gain 50-150 XP instantly. (Yummy!)' 
+        description: 'Eat to gain 10-70 XP instantly. (Yummy!)' 
     },
     { 
         id: 'coffee', 
         name: '☕ Coffee', 
-        price: 80, 
-        sellPrice: 40,
+        price: 250, 
+        sellPrice: 125,
         description: 'Resets all game cooldowns instantly.' 
     },
     {
         id: 'energy_drink',
         name: '🥤 Energy Drink',
-        price: 200,
-        sellPrice: 100,
+        price: 500,
+        sellPrice: 250,
         description: 'Resets cooldowns + gives 50 XP boost.'
     },
     { 
         id: 'mystery_box', 
         name: '📦 Mystery Box', 
-        price: 500, 
+        price: 750, 
         sellPrice: 0,
         description: 'Random reward! Can be XP, cash, or trash.' 
     },

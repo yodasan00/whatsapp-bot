@@ -113,7 +113,7 @@ const commands = {
         let response = ''
         
         if (itemId === 'cookie') {
-            const xpGain = Math.floor(Math.random() * 101) + 50 // 50-150 XP (Buffed)
+            const xpGain = Math.floor(Math.random() * 61) + 10 // 10-70 XP
             addXP(jid, sender, xpGain)
             response = `🍪 You ate the cookie.\n😋 It was delicious! (+${xpGain} XP)`
             
@@ -191,6 +191,130 @@ const commands = {
         } else {
             await sock.sendMessage(jid, { text: '❌ Transaction failed.' })
         }
+    },
+
+    beg: async ({ sock, jid, sender }) => {
+        // Cooldown: 30 minutes (1800s)
+        const wait = isOnCooldown(jid, sender, 'beg', 1800)
+        
+        if (wait > 0) {
+            await sock.sendMessage(jid, { text: `⏳ You already begged recently. Wait *${wait}s*.` })
+            return
+        }
+
+        const xp = Math.floor(Math.random() * 21) + 5 // 5-25 XP
+        const total = addXP(jid, sender, xp)
+
+        await sock.sendMessage(jid, { 
+            text: `🥺 You begged on the streets...\n🙏 A kind stranger gave you *${xp} XP*.\nTotal: ${total}` 
+        })
+    },
+
+    donate: async ({ sock, jid, sender, args }) => {
+        // .donate 100 @user
+        const amount = parseInt(args[0])
+        const target = args[1] ? args[1].replace('@', '') + '@s.whatsapp.net' : null // Assuming mention or JID
+
+        // TODO: Better target handling using contextInfo mentions if args fail
+        
+        if (!amount || isNaN(amount) || amount <= 0) {
+             await sock.sendMessage(jid, { text: '❌ Usage: .donate <amount> <@tag_user>' })
+             return
+        }
+
+        if (!target) {
+            await sock.sendMessage(jid, { text: '❌ You must tag someone to donate to.' })
+            return
+        }
+
+        if (target === sender) {
+            await sock.sendMessage(jid, { text: '❌ You can’t donate to yourself.' })
+            return
+        }
+
+        const userXP = getXP(jid, sender)
+        if (userXP < amount) {
+            await sock.sendMessage(jid, { text: `❌ You don't have enough XP. You have: ${userXP}` })
+            return
+        }
+
+        // Transfer
+        addXP(jid, sender, -amount)
+        addXP(jid, target, amount)
+
+        await sock.sendMessage(jid, { 
+            text: `💸 Donation Successful!\nSent *${amount} XP* to @${target.split('@')[0]}`,
+            mentions: [target]
+        })
+    },
+
+    rob: async ({ sock, jid, sender, args, msg }) => {
+         // Cooldown: 2 hours (7200s)
+         const wait = isOnCooldown(jid, sender, 'rob', 7200)
+        
+         if (wait > 0) {
+             await sock.sendMessage(jid, { text: `⏳ You are lying low. Wait *${wait}s* to rob again.` })
+             return
+         }
+
+         const target = msg.message?.extendedTextMessage?.contextInfo?.participant || 
+                        (args[0] ? args[0].replace('@', '') + '@s.whatsapp.net' : null)
+
+         if (!target) {
+             await sock.sendMessage(jid, { text: '❌ Reply to a message or tag someone to rob them.' })
+             return
+         }
+
+         if (target === sender) {
+             await sock.sendMessage(jid, { text: '❌ You can’t rob yourself.' })
+             return
+         }
+         
+         // Check shield
+         const targetInv = getInventory(jid, target)
+         if (targetInv.shield && targetInv.shield > 0) {
+             removeItem(jid, target, 'shield')
+             await sock.sendMessage(jid, { 
+                 text: `🛡️ ROBBERY FAILED!\nThe target had a **Rob Shield**! It broke, but they are safe.`,
+                 mentions: [target]
+             })
+             // Notify victim? Maybe later.
+             return
+         }
+
+         const success = Math.random() < 0.40 // 40% Success
+         
+         if (success) {
+             const targetXP = getXP(jid, target)
+             if (targetXP < 20) {
+                 await sock.sendMessage(jid, { text: '❌ Target is too poor to rob. (Has < 20 XP)' })
+                 return
+             }
+             
+             // Steal 5-15%
+             const percent = (Math.random() * 0.10) + 0.05
+             const stealAmount = Math.floor(targetXP * percent)
+             
+             addXP(jid, target, -stealAmount)
+             addXP(jid, sender, stealAmount)
+             
+             await sock.sendMessage(jid, { 
+                 text: `🔫 HANDS UP! You robbed @${target.split('@')[0]} and got *${stealAmount} XP*!`,
+                 mentions: [target]
+             })
+
+         } else {
+             // Fail - Pay fine 10-200 XP
+             const fine = Math.floor(Math.random() * 191) + 10
+             const userXP = getXP(jid, sender)
+             const actualFine = Math.min(userXP, fine)
+
+             addXP(jid, sender, -actualFine)
+             
+             await sock.sendMessage(jid, { 
+                 text: `🚓 POLICE! You got caught.\nYou paid a fine of *${actualFine} XP*.`
+             })
+         }
     }
 }
 

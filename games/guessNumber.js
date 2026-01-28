@@ -44,7 +44,7 @@ async function handleGuessReply({ sock, msg, jid }) {
   const winner = msg.key.participant || msg.key.remoteJid
 
   // ⭐ GIVE XP (you can change amount)
-  const xpGained = 7
+  const xpGained = 50
   const totalXP = addXP(jid, winner, xpGained)
 
   await sock.sendMessage(jid, {

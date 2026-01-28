@@ -3,6 +3,7 @@ const fs = require('fs')
 const path = require('path')
 const gis = require('g-i-s')
 const { startGuessGame } = require('../games/guessNumber')
+const { startMathGame } = require('../games/mathGame') // ⭐ Added this
 const { getXP, getLeaderboard } = require('../state/xp')
 const { addXP } = require('../state/xp')
 const { addItem, getInventory } = require('../state/inventory')
@@ -122,6 +123,10 @@ const commands = {
     await startGuessGame({ sock, jid })
   },
 
+  math: async ({ sock, jid }) => { // ⭐ Added `.math`
+      await startMathGame({ sock, jid })
+  },
+
   iqtest: async ({ sock, jid }) => {
   const iq = Math.floor(Math.random() * 101) + 50
   await sock.sendMessage(jid, {
@@ -154,14 +159,14 @@ const commands = {
 
   if (userChoice === botChoice) {
     resultText = '🤝 It’s a draw!'
-    xpGained = 1
+    xpGained = 5
   } else if (
     (userChoice === 'rock' && botChoice === 'scissors') ||
     (userChoice === 'paper' && botChoice === 'rock') ||
     (userChoice === 'scissors' && botChoice === 'paper')
   ) {
     resultText = '🎉 You win!'
-    xpGained = 3
+    xpGained = 20
   } else {
     resultText = '💀 You lose!'
     xpGained = 0
@@ -272,11 +277,11 @@ leaderboard: async ({ sock, jid }) => {
   const hasMultiplier = inv.diamond || inv.mvp_badge
   const hasShovel = inv.golden_shovel
   
-  let xp = Math.floor(Math.random() * 6) + 1
+  let xp = Math.floor(Math.random() * 16) + 15 // 15-30 XP
   let multiplierText = ''
   
   if (hasShovel) {
-      xp = Math.floor(Math.random() * 21) + 10 // 10-30 XP
+      xp = Math.floor(Math.random() * 41) + 30 // 30-70 XP with shovel
       multiplierText = '\n🌟 *Golden Shovel Power!*'
   }
   
@@ -351,9 +356,10 @@ fish: async ({ sock, jid, sender }) => {
 
 
   // Re-use inv from above
+  //  const inv = getInventory(jid, sender)
   const hasMultiplier = inv.diamond || inv.mvp_badge
   
-  let xp = Math.floor(Math.random() * 7) + 2
+  let xp = Math.floor(Math.random() * 21) + 20 // 20-40 XP
   let multiplierText = ''
   
   if (hasMultiplier) {
@@ -539,11 +545,11 @@ ${lyrics}`
     await sock.sendMessage(jid, {
       text:
   `🤖 *Yaadobot MENU*
-  created by @yaad v1.2
-  Still in development
-  It is Hosted in a crappy Home Server. Sometimes the bot maybe be down.
-  Who cares lol!
----------~~~~~~~~------~~~~~-------~~~~~~~------~~~~~~~---
+  created by @yaad v1.3
+  Still in development.
+  Now Hosted in AWS EC2 VPS Yaaay!!
+  but some functions are still hosted in a crappy Home Server.
+  Sometimes the bot maybe be down. Who Caress!!
   ━━━━━━━━━━
   🎲 *FUN Stuffs*
   ━━━━━━━━━━
@@ -561,6 +567,13 @@ ${lyrics}`
   .plays <song_name> <Artist optional> (Android only)
   .lyrics <song_name> <Artist optional>
   .pic <description>
+  .watch <movie/show>
+
+  ━━━━━━━━━━
+  🎰 *GAMBLING* (High Risk)
+  ━━━━━━━━━━
+  .slots <amount>
+  .flip <heads/tails> <amount>
 
   ━━━━━━━━━━
   🎮 *GAMES* (provides xp)
@@ -570,6 +583,7 @@ ${lyrics}`
   .truth
   .dare
   .guess
+  .math
   .numguess
   .rps <rock|paper|scissors>
   .dig
@@ -583,11 +597,16 @@ ${lyrics}`
   .sell <item>
   .inv / .inventory
   .use <item>
+  .beg
+  .rob <user>
+  .donate <amount> <user>
   ━━━━━━━━━━
   ℹ️ Type *.help* to learn how to use commands.
   .admin for admin commands in groups.(make the bot admin first)
   ━━━━━━━━━━
-  😌update Log: Added .play command for cross compatible music playback.
+  😌update Log: 
+  .Added Gambling & Economy 2.0!
+  .watch for movie streaming
   .plays is still available(faster) but .play is recommended now.
   `
     })

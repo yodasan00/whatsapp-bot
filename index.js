@@ -14,8 +14,11 @@ const { shouldBotRespond } = require('./handlers/attention')
 const { handleFunCommand } = require('./commands/fun')
 const { handleAdminCommand } = require('./commands/admin')
 const { handleEconomyCommand } = require('./commands/economy')
+const { handleGambleCommand } = require('./commands/gamble') // ⭐ Added this
+const { handleMediaCommand } = require('./commands/media') // ⭐ Added this
 const { handleFunReactions } = require('./handlers/funReactions')
 const { handleGuessReply } = require('./games/guessNumber')
+const { handleMathReply } = require('./games/mathGame') // ⭐ Added this
 const { aiReply } = require('./ai/responder')
 const { handleAICommand } = require('./commands/ai')
 const { addUserMessage } = require('./state/userHistory')
@@ -100,7 +103,12 @@ async function startBot() {
       }
     }
 
-    if (isGroup && mutedGroups.has(jid) && !text.startsWith('.')) return
+    if (isGroup && mutedGroups.has(jid)) {
+        // If disabled, ONLY allow .enable or .admins
+        if (!text.startsWith('.enable') && !text.startsWith('.admins')) {
+            return
+        }
+    }
 
     await handleFunReactions({ sock, msg, jid, isGroup })
 
@@ -122,6 +130,8 @@ async function startBot() {
 
       if (await handleAdminCommand({ command, sock, jid, msg })) return
       if (await handleEconomyCommand({ command, args, sock, jid, sender })) return
+      if (await handleGambleCommand({ command, args, sock, jid, sender })) return // ⭐ Added this
+      if (await handleMediaCommand({ command, args, sock, jid, sender })) return // ⭐ Added this
       if (await handleAICommand({ command, args, sock, jid, msg })) return
       if (await handleFunCommand({ command, args, sock, jid, sender })) return
     }
@@ -129,6 +139,7 @@ async function startBot() {
     /* ---------- GAMES ---------- */
 
     if (await handleGuessReply({ sock, msg, jid })) return
+    if (await handleMathReply({ sock, msg, jid, sender })) return // ⭐ Added this
 
     const game = getGame(jid)
 
