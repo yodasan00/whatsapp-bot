@@ -1,7 +1,7 @@
 const { shopItems, getItem } = require('../state/shop')
 const { getInventory, addItem, removeItem } = require('../state/inventory')
 const { getXP, addXP } = require('../state/xp')
-const { resetCooldown } = require('../state/cooldown')
+const { resetCooldown, isOnCooldown } = require('../state/cooldown')
 
 const commands = {
     shop: async ({ sock, jid, sender }) => {
@@ -206,24 +206,33 @@ const commands = {
         const total = addXP(jid, sender, xp)
 
         await sock.sendMessage(jid, { 
-            text: `🥺 You begged on the streets...\n🙏 A kind stranger gave you *${xp} XP*.\nTotal: ${total}` 
+            text: `🥺 You begged on the streets...\n🙏 A kind stranger gave you *${xp} XP*.\nTotal: ${total} XP` 
         })
     },
 
-    donate: async ({ sock, jid, sender, args }) => {
-        // .donate 100 @user
+    donate: async ({ sock, jid, sender, args, msg }) => {
         const amount = parseInt(args[0])
-        const target = args[1] ? args[1].replace('@', '') + '@s.whatsapp.net' : null // Assuming mention or JID
-
-        // TODO: Better target handling using contextInfo mentions if args fail
         
+        // Target: Check reply first, then mentionedJid, then args
+        let target = msg.message?.extendedTextMessage?.contextInfo?.participant
+        const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || []
+        
+        if (!target && mentioned.length > 0) {
+            target = mentioned[0]
+        }
+        
+        if (!target && args[1]) {
+             // Handle raw number if no mention
+             target = args[1].replace('@', '').replace(/[^0-9]/g, '') + '@s.whatsapp.net'
+        }
+
         if (!amount || isNaN(amount) || amount <= 0) {
              await sock.sendMessage(jid, { text: '❌ Usage: .donate <amount> <@tag_user>' })
              return
         }
 
         if (!target) {
-            await sock.sendMessage(jid, { text: '❌ You must tag someone to donate to.' })
+            await sock.sendMessage(jid, { text: '❌ You must tag someone or reply to their message to donate.' })
             return
         }
 
@@ -243,7 +252,7 @@ const commands = {
         addXP(jid, target, amount)
 
         await sock.sendMessage(jid, { 
-            text: `💸 Donation Successful!\nSent *${amount} XP* to @${target.split('@')[0]}`,
+            text: `💸 *Donation Successful!*\nSent *${amount} XP* to @${target.split('@')[0]}`,
             mentions: [target]
         })
     },
@@ -257,8 +266,10 @@ const commands = {
              return
          }
 
+         const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || []
          const target = msg.message?.extendedTextMessage?.contextInfo?.participant || 
-                        (args[0] ? args[0].replace('@', '') + '@s.whatsapp.net' : null)
+                        mentioned[0] ||
+                        (args[0] ? args[0].replace('@', '').replace(/[^0-9]/g, '') + '@s.whatsapp.net' : null)
 
          if (!target) {
              await sock.sendMessage(jid, { text: '❌ Reply to a message or tag someone to rob them.' })
@@ -318,10 +329,10 @@ const commands = {
     }
 }
 
-async function handleEconomyCommand({ command, args, sock, jid, sender }) {
+async function handleEconomyCommand({ command, args, sock, jid, sender, msg }) {
     const handler = commands[command]
     if (handler) {
-        await handler({ sock, jid, args, sender })
+        await handler({ sock, jid, args, sender, msg })
         return true
     }
     return false

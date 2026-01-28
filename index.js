@@ -129,7 +129,7 @@ async function startBot() {
       const command = args.shift().toLowerCase()
 
       if (await handleAdminCommand({ command, sock, jid, msg })) return
-      if (await handleEconomyCommand({ command, args, sock, jid, sender })) return
+      if (await handleEconomyCommand({ command, args, sock, jid, sender, msg })) return
       if (await handleGambleCommand({ command, args, sock, jid, sender })) return // ⭐ Added this
       if (await handleMediaCommand({ command, args, sock, jid, sender })) return // ⭐ Added this
       if (await handleAICommand({ command, args, sock, jid, msg })) return
