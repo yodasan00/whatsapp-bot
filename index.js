@@ -83,7 +83,7 @@ async function startBot() {
 
     const jid = msg.key.remoteJid
     const isGroup = jid.endsWith('@g.us')
-    const sender = msg.key.participant
+    const sender = isGroup ? msg.key.participant : jid
 
     const text = extractText(msg)
     if (!text) return
