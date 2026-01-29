@@ -4,6 +4,7 @@ const path = require('path')
 const gis = require('g-i-s')
 const { startGuessGame } = require('../games/guessNumber')
 const { startMathGame } = require('../games/mathGame') // ⭐ Added this
+const { startTimeBomb, passBomb } = require('../games/timeBomb') // ⭐ Added this
 const { getXP, getLeaderboard } = require('../state/xp')
 const { addXP } = require('../state/xp')
 const { addItem, getInventory } = require('../state/inventory')
@@ -132,6 +133,15 @@ const commands = {
   await sock.sendMessage(jid, {
     text: `🧠 Estimated IQ: *${iq}*\n(Results may vary wildly)`
   })
+  },
+
+  timebomb: async ({ sock, jid, sender }) => {
+      await startTimeBomb({ sock, jid, sender })
+  },
+
+  pass: async ({ sock, jid, sender, msg }) => {
+      const mentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || []
+      await passBomb({ sock, jid, sender, mentions })
   },
 
   rps: async ({ sock, jid, sender, args }) => {
@@ -544,73 +554,69 @@ ${lyrics}`
   menu: async ({ sock, jid }) => {
     await sock.sendMessage(jid, {
       text:
-  `🤖 *Yaadobot MENU*
-  created by @yaad v1.3
-  Still in development.
-  Now Hosted in AWS EC2 VPS Yaaay!!
-  but some functions are still hosted in a crappy Home Server.
-  Sometimes the bot maybe be down. Who Caress!!
-  ━━━━━━━━━━
-  🎲 *FUN Stuffs*
-  ━━━━━━━━━━
-  .dice
-  .coin
-  .8ball <question>
-  .dadjoke
-  .rate
-  .explainlikeim5
-  .judge
-  .roast
-  .iqtest
-  .truthmeter
-  .play <song_name> <Artist optional> (universal)
-  .plays <song_name> <Artist optional> (Android only)
-  .lyrics <song_name> <Artist optional>
-  .pic <description>
-  .watch <movie/show>
+`🤖 *Yaadobot v2.0*
+_Created by @yaad_
 
-  ━━━━━━━━━━
-  🎰 *GAMBLING* (High Risk)
-  ━━━━━━━━━━
-  .slots <amount>
-  .flip <heads/tails> <amount>
+━━━━━━━━━━━━
+🎲 *GAMBLING ZONE*
+━━━━━━━━━━━━
+.dice <amount> <1-6>
+.roulette <amount> <bet>
+.slots <amount>
+.flip <heads/tails> <amount>
 
-  ━━━━━━━━━━
-  🎮 *GAMES* (provides xp)
-  ━━━━━━━━━━
-  .xp
-  .leaderboard
-  .truth
-  .dare
-  .guess
-  .math
-  .numguess
-  .rps <rock|paper|scissors>
-  .dig
-  .fish
-  .unscramble
-  ━━━━━━━━━━
-  💰 *ECONOMY*
-  ━━━━━━━━━━
-  .shop
-  .buy <item>
-  .sell <item>
-  .inv / .inventory
-  .use <item>
-  .beg
-  .rob <user>
-  .donate <amount> <user>
-  ━━━━━━━━━━
-  ℹ️ Type *.help* to learn how to use commands.
-  .admin for admin commands in groups.(make the bot admin first)
-  ━━━━━━━━━━
-  😌update Log: 
-  .Added Gambling & Economy 2.0!
-  .watch for movie streaming
-  .plays is still available(faster) but .play is recommended now.
-  `
+━━━━━━━━━━━━
+🎮 *ARCADE & GAMES*
+━━━━━━━━━━━━
+.leaderboard :: Top XP Players
+.math       
+.guess      
+.numguess   
+.timebomb   :: 💣 60s Fuse!
+.unscramble 
+.iqtest     
+.truthmeter
+.coin       
+.rps <choice>       
+.truth 
+.dare
+.8ball <question>
+.rate (reply to message)
+.judge (reply to message)
+.roast (reply to message)
+
+━━━━━━━━━━━━
+🛠️ *TOOLS & UTILITIES*
+━━━━━━━━━━━━
+.watch <movie/show> :: Stream Movies
+.pic <text>   :: Image search
+.play <song>  :: Download MP3
+.plays <song> :: Download Voice Note
+.lyrics <song>:: Get Lyrics
+.explain <topic>
+.explainlikeim5 <topic>
+.dadjoke
+
+━━━━━━━━━━━━
+💰 *ECONOMY*
+━━━━━━━━━━━━
+.xp
+.shop
+.inv
+.buy <item>
+.sell <item>
+.use <item>
+.donate <amount> <user>
+.rob <user>
+.beg
+.dig        
+.fish 
+
+_Type .help for details._
+_Just chat with me to use AI!_`
     })
   },
+
 
   admin: async ({ sock, jid }) => {
     await sock.sendMessage(jid, {
@@ -631,40 +637,30 @@ ${lyrics}`
   help: async ({ sock, jid }) => {
     await sock.sendMessage(jid, {
       text:
-  `ℹ️ *HOW TO USE THE BOT*
+`🤖 *Yaadobot HELP*
+_Guide to the galaxy... or just this bot._
 
-  – Use .menu to see available commands.
-  • Commands start with a dot (.)
-    Example: .dice
+━━━━━━━━━━━━
+🎛️ *THE BASICS*
+━━━━━━━━━━━━
+• *Commands*: Start with a dot (e.g., .menu, .xp)
+• *Arguments*: Some need info (e.g., .pic cat)
+• *Replies*: Some need you to reply to a message (.roast, .judge)
+• *Auto-Trivia*:
+  - Random questions pop up automatically.
+  - Reply fast for XP.
+  - *Mystery Box*: Reply "steal" first!
 
-  • Some commands need extra input
-    Example:
-    .rate my sleep schedule
-    .rps rock
+━━━━━━━━━━━━
+🧠 *TIPS & TRICKS*
+━━━━━━━━━━━━
+• Chat naturally with me to use AI.
+• Use *.shop* to buy items (coming soon).
+• Type *.leaderboard* to see top players.
 
-  • Some commands must be used as a reply
-    – .roast
-    – .judge
-
-  • Guessing games
-    – .guess or .numguess starts a game
-    – Reply with guesses in chat
-    – Bot pauses other replies during game
-
-  • Admin commands work only in groups
-    – You must be a group admin
-
-  • If something doesn’t work:
-    – Check spelling
-    – Try replying correctly
-
-  Keep it fun. Don’t spam. 😌
-  `
+_Have fun and don't spam! 🫡_`
     })
   },
-
-
-
 }
 
 async function handleFunCommand({ command, args, sock, jid, sender }) {

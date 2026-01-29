@@ -26,6 +26,7 @@ const { getGame, endGame } = require('./state/guessGame')
 const { checkUnscramble, hasUnscramble } = require('./games/unscramble')
 const { addXP } = require('./state/xp')
 const { startServer } = require('./server/app')
+const { addGroup, startRandomEvents, handleEventReply } = require('./games/autoTrivia') // ⭐ Added this
 
 // ⭐ stanzaId tracker
 const { rememberBotMessage } = require('./state/botMessages')
@@ -60,7 +61,8 @@ async function startBot() {
   sock.ev.on('creds.update', saveCreds)
 
   /* ---------- CONNECTION ---------- */
-  sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
+  sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
+    console.log('Connection Update:', connection)
     if (qr) {
       console.log('\n📱 Scan this QR code:\n')
       qrcode.generate(qr, { small: true })
@@ -68,11 +70,18 @@ async function startBot() {
 
     if (connection === 'open') {
       console.log('✅ WhatsApp connected')
+      
+      // ⭐ Fetch and register ALL groups
+      const groups = await sock.groupFetchAllParticipating()
+      Object.keys(groups).forEach(jid => addGroup(jid))
+      console.log(`🌍 Auto-Trivia: Registered ${Object.keys(groups).length} groups.`)
     }
 
     if (connection === 'close') {
+      console.log('❌ Connection closed due to:', lastDisconnect?.error)
       const shouldReconnect =
         lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut
+      console.log('🔄 Should reconnect:', shouldReconnect)
       if (shouldReconnect) startBot()
     }
   })
@@ -152,12 +161,12 @@ async function startBot() {
       const guessNorm = normalize(text)
 
       if (game.answers.some(a => guessNorm.includes(normalize(a)))) {
-        addXP(jid, sender, 10)
+        addXP(jid, sender, 50)
         endGame(jid)
 
         await sock.sendMessage(
           jid,
-          { text: `🎉 Correct! The answer was "${game.answers[0]}".\n+10 XP 🧠` },
+          { text: `🎉 Correct! The answer was "${game.answers[0]}".\n+50 XP 🧠` },
           { quoted: msg }
         )
       }
@@ -173,13 +182,24 @@ async function startBot() {
         jid,
         {
           text: result.correct
-            ? '🎉 Correct! You unscrambled the word\n+8 XP 🧠'
+            ? '🎉 Correct! You unscrambled the word\n+80 XP 🧠'
             : '❌ Nope, try again!'
         },
         { quoted: msg }
       )
 
-      if (result.correct) addXP(jid, sender, 8)
+      if (result.correct) addXP(jid, sender, 80)
+      return
+    }
+
+    /* ---------- AUTO TRIVIA ---------- */
+    // ⭐ Check if this is an answer to a random event
+    const triviaResult = handleEventReply(jid, sender, text)
+    if (triviaResult) {
+      await sock.sendMessage(jid, { 
+        text: `🎉 *Correct!* @${sender.split('@')[0]} won +${triviaResult.reward} XP! 🧠`,
+        mentions: [sender]
+      }, { quoted: msg })
       return
     }
 
@@ -198,6 +218,11 @@ async function startBot() {
       { quoted: msg }
     )
   })
+
+  // ⭐ SCHEDULER: Check for random events every 5 minutes
+  setInterval(() => {
+    startRandomEvents(sock)
+  }, 5 * 60 * 1000)
 }
 
 startServer()
