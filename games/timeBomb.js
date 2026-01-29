@@ -11,10 +11,10 @@ async function explode(sock, jid) {
     const victim = game.holder
 
     // Penalty
-    addXP(jid, victim, -500)
+    addXP(jid, victim, -100)
 
     await sock.sendMessage(jid, {
-        text: `💥 *BOOM!* The bomb exploded on @${victim.split('@')[0]}!\n\n💀 You lost *500 XP*. RIP.`,
+        text: `💥 *BOOM!* The bomb exploded on @${victim.split('@')[0]}!\n\n💀 You lost *100 XP*. RIP.`,
         mentions: [victim]
     })
 }
@@ -45,10 +45,13 @@ async function startTimeBomb({ sock, jid, sender }) {
 
 async function passBomb({ sock, jid, sender, mentions }) {
     const game = activeBombs.get(jid)
-    if (!game) return false // No game active
+    if (!game) {
+        await sock.sendMessage(jid, { text: '😴 No bomb is currently active.' })
+        return false 
+    }
 
     if (game.holder !== sender) {
-        // Only holder can pass
+        await sock.sendMessage(jid, { text: '❌ You don’t have the bomb!' })
         return false
     }
 

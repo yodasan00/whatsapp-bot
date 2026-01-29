@@ -663,7 +663,7 @@ _Have fun and don't spam! 🫡_`
   },
 }
 
-async function handleFunCommand({ command, args, sock, jid, sender }) {
+async function handleFunCommand({ command, args, sock, jid, sender, msg }) {
   const handler = commands[command]
 
   if (!handler) {
@@ -673,7 +673,7 @@ async function handleFunCommand({ command, args, sock, jid, sender }) {
     return true
   }
 
-  await handler({ sock, jid, args, sender })
+  await handler({ sock, jid, args, sender, msg })
   return true
 }
 

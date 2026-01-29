@@ -126,6 +126,24 @@ async function startBot() {
     }
 
     /* ---------- ATTENTION GATE ---------- */
+    
+    // ⭐ Global Toggle Check
+    const { getSettings } = require('./state/globalSettings')
+    const settings = getSettings()
+    
+    if (!settings.botEnabled) {
+        // Allow ONLY owner to interact
+        const ownerNumbers = (process.env.OWNER_NUMBER || '').split(',')
+        const isOwner = ownerNumbers.some(n => n && sender.includes(n.trim()))
+
+        if (!isOwner) {
+            // Check if it was a command attempt
+            if (text.startsWith('.') && settings.customMessage) {
+                 await sock.sendMessage(jid, { text: settings.customMessage }, { quoted: msg })
+            }
+            return // Stop processing for everyone else
+        }
+    }
 
     const allow = shouldBotRespond({ msg, text, isGroup })
     console.log('ATTENTION RESULT:', allow)
@@ -137,12 +155,12 @@ async function startBot() {
       const args = text.slice(1).split(/\s+/)
       const command = args.shift().toLowerCase()
 
-      if (await handleAdminCommand({ command, sock, jid, msg })) return
+      if (await handleAdminCommand({ command, sock, jid, msg, sender })) return
       if (await handleEconomyCommand({ command, args, sock, jid, sender, msg })) return
       if (await handleGambleCommand({ command, args, sock, jid, sender })) return // ⭐ Added this
       if (await handleMediaCommand({ command, args, sock, jid, sender })) return // ⭐ Added this
       if (await handleAICommand({ command, args, sock, jid, msg })) return
-      if (await handleFunCommand({ command, args, sock, jid, sender })) return
+      if (await handleFunCommand({ command, args, sock, jid, sender, msg })) return
     }
 
     /* ---------- GAMES ---------- */
