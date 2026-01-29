@@ -10,10 +10,21 @@ const lastEventTime = new Map()
 // Set<jid> - All known groups
 const knownGroups = new Set()
 
+// Set<jid> - Groups where auto-trivia is disabled
+const disabledGroups = new Set()
+
 function addGroup(jid) {
   if (jid.endsWith('@g.us')) {
     knownGroups.add(jid)
   }
+}
+
+function disableGames(jid) {
+    disabledGroups.add(jid)
+}
+
+function enableGames(jid) {
+    disabledGroups.delete(jid)
 }
 
 function getKnownGroups() {
@@ -91,11 +102,14 @@ function getRandomEvent() {
 async function startRandomEvents(sock) {
   // Check every known group
   const now = Date.now()
-  const COOLDOWN = 3.5 * 60 * 60 * 1000 // 3.5 hours
+  const COOLDOWN = 4 * 60 * 60 * 1000 // 4 hours
 
   for (const jid of knownGroups) {
       // Skip if event running
       if (activeEvents.has(jid)) continue
+
+      // Skip if disabled
+      if (disabledGroups.has(jid)) continue
 
       // Skip if recently ran
       const last = lastEventTime.get(jid) || 0
@@ -145,5 +159,7 @@ module.exports = {
   addGroup,
   getKnownGroups,
   startRandomEvents,
-  handleEventReply
+  handleEventReply,
+  enableGames,
+  disableGames
 }

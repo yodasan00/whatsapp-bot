@@ -12,8 +12,12 @@ const ADMIN_COMMANDS = [
   'unmute',
   'adminonly',
   'adminall',
-  'tagall'
+  'tagall',
+  'disablegames',
+  'enablegames'
 ]
+
+const { disableGames, enableGames } = require('../games/autoTrivia')
 
 async function handleAdminCommand({ command, sock, jid, msg }) {
   // ✅ Ignore non-admin commands entirely
@@ -115,6 +119,18 @@ async function handleAdminCommand({ command, sock, jid, msg }) {
       })
 
       return true
+    }
+
+    case 'disablegames': {
+        disableGames(jid)
+        await sock.sendMessage(jid, { text: '🚫 Auto-Trivia & Mystery Box disabled for this group.' })
+        return true
+    }
+
+    case 'enablegames': {
+        enableGames(jid)
+        await sock.sendMessage(jid, { text: '✅ Auto-Trivia & Mystery Box enabled!' })
+        return true
     }
 
   }
