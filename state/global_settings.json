@@ -1,4 +1,4 @@
 {
-  "botEnabled": false,
+  "botEnabled": true,
   "customMessage": "currently in development"
 }

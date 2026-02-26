@@ -1,7 +1,8 @@
 const {
   default: makeWASocket,
   useMultiFileAuthState,
-  DisconnectReason
+  DisconnectReason,
+  fetchLatestBaileysVersion
 } = require('@whiskeysockets/baileys')
 
 const Pino = require('pino')
@@ -37,10 +38,14 @@ const { mutedUsers } = require('./state/mutedUsers')
 
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState('./auth')
+  const { version, isLatest } = await fetchLatestBaileysVersion()
+  console.log(`Using WA v${version.join('.')}, isLatest: ${isLatest}`)
 
   const sock = makeWASocket({
+    version,
     auth: state,
-    logger: Pino({ level: 'silent' })
+    logger: Pino({ level: 'silent' }),
+    browser: ['Ubuntu', 'Chrome', '20.0.04']
   })
 
   /* =====================================================
