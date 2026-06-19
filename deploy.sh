@@ -40,6 +40,9 @@ if ! command -v deno &> /dev/null; then
 fi
 
 # 5. Restart PM2 Process
+echo "💀 Killing any orphaned python microservice processes on port 5005..."
+fuser -k 5005/tcp || true
+
 echo "🔄 Restarting bot via PM2..."
 if pm2 list | grep -q "bot"; then
     pm2 restart bot
