@@ -312,11 +312,25 @@ const { spawn } = require('child_process')
 const path = require('path')
 
 function startMusicService() {
+  const fs = require('fs')
   const scriptPath = path.join(__dirname, 'music-service', 'app.py')
-  console.log(`[MUSIC] Starting Python music microservice: python "${scriptPath}"`)
-  const pyProcess = spawn('python', [scriptPath], {
+
+  // Resolve python executable path (check virtual env first)
+  let pythonExe = 'python'
+  const winVenv = path.join(__dirname, 'music-service/.venv/Scripts/python.exe')
+  const nixVenv = path.join(__dirname, 'music-service/.venv/bin/python')
+  if (fs.existsSync(winVenv)) {
+    pythonExe = winVenv
+  } else if (fs.existsSync(nixVenv)) {
+    pythonExe = nixVenv
+  } else {
+    pythonExe = process.platform === 'win32' ? 'python' : 'python3'
+  }
+
+  console.log(`[MUSIC] Starting Python music microservice: "${pythonExe}" "${scriptPath}"`)
+  const pyProcess = spawn(pythonExe, [scriptPath], {
     stdio: 'inherit',
-    shell: true
+    shell: false
   })
 
   pyProcess.on('error', (err) => {
