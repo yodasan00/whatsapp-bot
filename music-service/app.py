@@ -43,19 +43,33 @@ def try_cobalt_fallback(url, download_mode="audio", audio_format="mp3"):
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     
-    instances = [
-        "https://api.cobalt.tools/api/json",
-        "https://cobalt.api.ryzetech.live/api/json",
-        "https://cobalt.q19.moe/api/json",
-        "https://cobalt-api.kwi.sk/api/json",
-        "https://co.wuk.sh/api/json",
-        "https://cobalt.shinn.do/api/json"
-    ]
+    # 1. Fetch dynamic working list of Cobalt instances from cobalt.directory
+    instances = []
+    try:
+        logger.info("[COBALT] Fetching working instances list from cobalt.directory...")
+        directory_req = urllib.request.Request(
+            "https://cobalt.directory/api/working?type=api",
+            headers={"User-Agent": headers["User-Agent"]}
+        )
+        with urllib.request.urlopen(directory_req, timeout=8) as dir_resp:
+            dir_data = json.loads(dir_resp.read().decode('utf-8'))
+            instances = dir_data.get("data", {}).get("youtube", [])
+            logger.info(f"[COBALT] Found {len(instances)} working YouTube instances from cobalt.directory: {instances}")
+    except Exception as e:
+        logger.warning(f"[COBALT] Failed to fetch instances from cobalt.directory: {e}")
+        
+    # Fallback to hardcoded known open instances if directory fetch failed or returned empty
+    if not instances:
+        instances = [
+            "https://api.cobalt.blackcat.sweeux.org",
+            "https://rue-cobalt.xenon.zone"
+        ]
     
     for instance in instances:
+        api_url = instance if instance.endswith('/') else instance + '/'
         try:
-            logger.info(f"[COBALT] Trying Cobalt instance: {instance} for url: {url}")
-            req = urllib.request.Request(instance, data=data, headers=headers, method='POST')
+            logger.info(f"[COBALT] Trying Cobalt instance: {api_url} for url: {url}")
+            req = urllib.request.Request(api_url, data=data, headers=headers, method='POST')
             with urllib.request.urlopen(req, timeout=15) as response:
                 if response.status == 200:
                     resp_data = json.loads(response.read().decode('utf-8'))
@@ -67,15 +81,15 @@ def try_cobalt_fallback(url, download_mode="audio", audio_format="mp3"):
                         with urllib.request.urlopen(stream_req, timeout=45) as stream_response:
                             if stream_response.status == 200:
                                 return stream_response.read()
-            logger.warning(f"[COBALT] Instance {instance} returned non-200 or no URL")
+            logger.warning(f"[COBALT] Instance {api_url} returned non-200 or no URL")
         except urllib.error.HTTPError as he:
             try:
                 err_body = he.read().decode('utf-8')
             except:
                 err_body = "could not read body"
-            logger.warning(f"[COBALT] Instance {instance} failed with HTTPError {he.code}: {err_body}")
+            logger.warning(f"[COBALT] Instance {api_url} failed with HTTPError {he.code}: {err_body}")
         except Exception as e:
-            logger.warning(f"[COBALT] Instance {instance} failed: {e}")
+            logger.warning(f"[COBALT] Instance {api_url} failed: {e}")
             
     return None
 
