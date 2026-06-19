@@ -97,6 +97,12 @@ def try_cobalt_fallback(url, download_mode="audio", audio_format="mp3"):
 def health():
     return jsonify({"status": "healthy"}), 200
 
+@app.errorhandler(Exception)
+def handle_exception(e):
+    import traceback
+    logger.error(f"Unhandled Exception: {e}\n{traceback.format_exc()}")
+    return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+
 @app.route('/download', methods=['GET'])
 def download():
     url = request.args.get('url')

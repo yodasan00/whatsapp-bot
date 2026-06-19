@@ -586,6 +586,14 @@ video: async ({ sock, jid, args }) => {
 
   } catch (err) {
     console.error(`[VIDEO] error:`, err.message)
+    if (err.response && err.response.data) {
+      try {
+        const errStr = Buffer.from(err.response.data).toString('utf-8')
+        console.error(`[VIDEO] Flask error response:`, errStr)
+      } catch (parseErr) {
+        // ignore
+      }
+    }
     await sock.sendMessage(jid, { 
       text: `❌ Error downloading video: ${err.message || 'Server timeout or connection failed.'}` 
     })
