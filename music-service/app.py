@@ -245,7 +245,7 @@ def download_video():
             "-c:v", "libx264",
             "-c:a", "aac",
             "-pix_fmt", "yuv420p",
-            "-preset", "veryfast",
+            "-preset", "ultrafast",
             "-movflags", "+faststart",
             out_path
         ]
