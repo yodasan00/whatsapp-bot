@@ -2,6 +2,8 @@ import os
 import time
 import logging
 import io
+import urllib.request
+import json
 from flask import Flask, request, jsonify, send_file
 import yt_dlp
 
@@ -16,6 +18,58 @@ logger = logging.getLogger(__name__)
 
 TEMP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "temp")
 os.makedirs(TEMP_DIR, exist_ok=True)
+
+def get_cookies_path():
+    root_cookies = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "cookies.txt")
+    if os.path.exists(root_cookies):
+        return root_cookies
+    service_cookies = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt")
+    if os.path.exists(service_cookies):
+        return service_cookies
+    return None
+
+def try_cobalt_fallback(url, download_mode="audio", audio_format="mp3"):
+    payload = {
+        "url": url,
+        "downloadMode": download_mode,
+        "audioFormat": audio_format,
+        "videoQuality": "720",
+        "filenameStyle": "basic"
+    }
+    data = json.dumps(payload).encode('utf-8')
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    
+    instances = [
+        "https://cobalt.api.ryzetech.live",
+        "https://api.cobalt.tools",
+        "https://co.wuk.sh",
+        "https://cobalt.shinn.do"
+    ]
+    
+    for instance in instances:
+        try:
+            logger.info(f"[COBALT] Trying Cobalt instance: {instance} for url: {url}")
+            req = urllib.request.Request(instance, data=data, headers=headers, method='POST')
+            with urllib.request.urlopen(req, timeout=15) as response:
+                if response.status == 200:
+                    resp_data = json.loads(response.read().decode('utf-8'))
+                    if "url" in resp_data:
+                        stream_url = resp_data["url"]
+                        logger.info(f"[COBALT] Success! Streaming from URL: {stream_url}")
+                        
+                        stream_req = urllib.request.Request(stream_url, headers={"User-Agent": headers["User-Agent"]})
+                        with urllib.request.urlopen(stream_req, timeout=45) as stream_response:
+                            if stream_response.status == 200:
+                                return stream_response.read()
+            logger.warning(f"[COBALT] Instance {instance} returned non-200 or no URL")
+        except Exception as e:
+            logger.warning(f"[COBALT] Instance {instance} failed: {e}")
+            
+    return None
 
 @app.route('/health', methods=['GET'])
 def health():
@@ -58,6 +112,11 @@ def download():
         'no_warnings': True,
     }
 
+    cookies_path = get_cookies_path()
+    if cookies_path:
+        ydl_opts['cookiefile'] = cookies_path
+        logger.info(f"Loaded yt-dlp cookies from: {cookies_path}")
+
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             logger.info(f"Starting yt-dlp download for codec {codec}...")
@@ -94,7 +153,21 @@ def download():
         )
 
     except Exception as e:
-        logger.error(f"Error occurred during download/processing: {e}")
+        logger.error(f"Error occurred during download/processing: {e}. Trying Cobalt fallback...")
+        try:
+            cobalt_data = try_cobalt_fallback(url, download_mode="audio", audio_format=codec)
+            if cobalt_data:
+                mimetype = "audio/ogg; codecs=opus" if codec == 'opus' else "audio/mpeg"
+                logger.info(f"Streaming {len(cobalt_data)} bytes from Cobalt fallback with mimetype {mimetype}")
+                return send_file(
+                    io.BytesIO(cobalt_data),
+                    mimetype=mimetype,
+                    as_attachment=True,
+                    download_name=f"audio.{ext}"
+                )
+        except Exception as fallback_err:
+            logger.error(f"Cobalt fallback failed: {fallback_err}")
+
         # Cleanup any leftover files
         for possible_ext in ['.mp3', '.opus', '.webm', '.m4a', '.mp4']:
             possible_file = os.path.join(TEMP_DIR, unique_id + possible_ext)
@@ -128,6 +201,11 @@ def download_video():
         'quiet': True,
         'no_warnings': True,
     }
+
+    cookies_path = get_cookies_path()
+    if cookies_path:
+        ydl_opts['cookiefile'] = cookies_path
+        logger.info(f"Loaded yt-dlp cookies from: {cookies_path}")
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -163,7 +241,20 @@ def download_video():
         )
 
     except Exception as e:
-        logger.error(f"Error occurred during video download/processing: {e}")
+        logger.error(f"Error occurred during video download/processing: {e}. Trying Cobalt fallback...")
+        try:
+            cobalt_data = try_cobalt_fallback(url, download_mode="auto")
+            if cobalt_data:
+                logger.info(f"Streaming {len(cobalt_data)} bytes from Cobalt video fallback")
+                return send_file(
+                    io.BytesIO(cobalt_data),
+                    mimetype="video/mp4",
+                    as_attachment=True,
+                    download_name="video.mp4"
+                )
+        except Exception as fallback_err:
+            logger.error(f"Cobalt video fallback failed: {fallback_err}")
+
         for possible_ext in ['.mp4', '.mkv', '.webm', '.m4a']:
             possible_file = os.path.join(TEMP_DIR, unique_id + possible_ext)
             if os.path.exists(possible_file):
