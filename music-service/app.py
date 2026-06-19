@@ -44,10 +44,12 @@ def try_cobalt_fallback(url, download_mode="audio", audio_format="mp3"):
     }
     
     instances = [
-        "https://cobalt.api.ryzetech.live",
-        "https://api.cobalt.tools",
-        "https://co.wuk.sh",
-        "https://cobalt.shinn.do"
+        "https://api.cobalt.tools/api/json",
+        "https://cobalt.api.ryzetech.live/api/json",
+        "https://cobalt.q19.moe/api/json",
+        "https://cobalt-api.kwi.sk/api/json",
+        "https://co.wuk.sh/api/json",
+        "https://cobalt.shinn.do/api/json"
     ]
     
     for instance in instances:

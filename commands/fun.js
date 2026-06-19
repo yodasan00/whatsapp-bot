@@ -28,7 +28,12 @@ async function processAudioRequest({ sock, jid, args, ptt }) {
 
   const result = await enqueue(jid, async () => {
     try {
-      const searchResult = await yts(query)
+      let searchQuery = query
+      if (!query.startsWith('http') && !/\b(lyrics|video|official|live|cover|remix|audio)\b/i.test(query)) {
+        searchQuery = query + ' audio'
+      }
+
+      const searchResult = await yts(searchQuery)
       const video = searchResult.videos.length > 0 ? searchResult.videos[0] : null
 
       if (!video) {
@@ -42,8 +47,9 @@ async function processAudioRequest({ sock, jid, args, ptt }) {
         throw new Error(`Video is too long! Limit is 20 minutes (requested: ${video.timestamp || 'unknown'}).`)
       }
 
+      const artist = video.author.name.replace(/\s*-\s*Topic$/i, '')
       await sock.sendMessage(jid, {
-        text: `🎵 *Now Playing:* \n*Title:* ${video.title}\n*Channel:* ${video.author.name}`
+        text: `🎵 *Now Playing:* \n*Title:* ${video.title}\n*Artist:* ${artist}`
       })
 
       // Fetch the audio buffer from the Flask microservice
