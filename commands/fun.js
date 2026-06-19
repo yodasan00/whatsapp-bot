@@ -73,6 +73,14 @@ async function processAudioRequest({ sock, jid, args, ptt }) {
 
     } catch (err) {
       console.error(`[${commandName.toUpperCase()}] error:`, err.message)
+      if (err.response && err.response.data) {
+        try {
+          const errStr = Buffer.from(err.response.data).toString('utf-8')
+          console.error(`[${commandName.toUpperCase()}] Flask error response:`, errStr)
+        } catch (parseErr) {
+          // ignore
+        }
+      }
       let msg = `⚠️ Failed to play music.`
       if (err.message === 'Song not found') {
         msg = '❌ Song not found. Try a different name.'
