@@ -209,8 +209,8 @@ def download_video():
     logger.info(f"Received video download request for URL: {url}")
     
     unique_id = f"video_{os.getpid()}_{int(time.time() * 1000)}"
-    output_tmpl = os.path.join(TEMP_DIR, unique_id + ".%(ext)s")
-    final_filepath = os.path.join(TEMP_DIR, f"{unique_id}.mp4")
+    output_tmpl = os.path.join(TEMP_DIR, unique_id + "_raw.%(ext)s")
+    transcoded_filepath = os.path.join(TEMP_DIR, f"{unique_id}_compatible.mp4")
 
     ydl_opts = {
         'format': '22/18/best[ext=mp4]/best',
@@ -229,31 +229,65 @@ def download_video():
         ydl_opts['cookiefile'] = cookies_path
         logger.info(f"Loaded yt-dlp cookies from: {cookies_path}")
 
+    # Helper function to transcode using FFmpeg
+    def transcode(in_path, out_path):
+        import subprocess
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", in_path,
+            "-c:v", "libx264",
+            "-c:a", "aac",
+            "-pix_fmt", "yuv420p",
+            "-preset", "veryfast",
+            "-movflags", "+faststart",
+            out_path
+        ]
+        logger.info(f"[TRANSCODE] Running command: {' '.join(cmd)}")
+        try:
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if res.returncode == 0:
+                logger.info("[TRANSCODE] Transcoding successful.")
+                return True
+            else:
+                logger.error(f"[TRANSCODE] FFmpeg returned non-zero code {res.returncode}. stderr: {res.stderr.decode('utf-8', errors='ignore')}")
+        except Exception as ex:
+            logger.error(f"[TRANSCODE] Failed to run FFmpeg: {ex}")
+        return False
+
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             logger.info("Starting yt-dlp video download...")
             ydl.download([url])
             logger.info("Video download completed.")
 
-        if not os.path.exists(final_filepath):
-            found = False
-            for f in os.listdir(TEMP_DIR):
-                if f.startswith(unique_id) and f.endswith('.mp4'):
-                    final_filepath = os.path.join(TEMP_DIR, f)
-                    found = True
-                    break
-            if not found:
-                logger.error(f"Expected video file was not found: {final_filepath}")
-                return jsonify({"error": "Failed to extract video file"}), 500
+        # Find the raw downloaded file (regardless of extension: .mp4, .webm, etc.)
+        raw_filepath = None
+        for f in os.listdir(TEMP_DIR):
+            if f.startswith(unique_id + "_raw"):
+                raw_filepath = os.path.join(TEMP_DIR, f)
+                break
 
-        with open(final_filepath, 'rb') as f:
+        if not raw_filepath or not os.path.exists(raw_filepath):
+            logger.error("Expected raw video file was not found.")
+            return jsonify({"error": "Failed to extract video file"}), 500
+
+        # Transcode to compatible format
+        success = transcode(raw_filepath, transcoded_filepath)
+        
+        # Read the file to send
+        file_to_send = transcoded_filepath if (success and os.path.exists(transcoded_filepath)) else raw_filepath
+        with open(file_to_send, 'rb') as f:
             file_data = f.read()
 
+        # Cleanup
         try:
-            os.remove(final_filepath)
-            logger.info(f"Cleaned up temporary video: {final_filepath}")
+            if os.path.exists(raw_filepath):
+                os.remove(raw_filepath)
+            if os.path.exists(transcoded_filepath):
+                os.remove(transcoded_filepath)
+            logger.info("Cleaned up temporary video files from disk.")
         except Exception as cleanup_err:
-            logger.error(f"Failed to delete temporary video: {cleanup_err}")
+            logger.error(f"Failed to delete temporary video files: {cleanup_err}")
 
         return send_file(
             io.BytesIO(file_data),
@@ -267,9 +301,27 @@ def download_video():
         try:
             cobalt_data = try_cobalt_fallback(url, download_mode="auto")
             if cobalt_data:
-                logger.info(f"Streaming {len(cobalt_data)} bytes from Cobalt video fallback")
+                logger.info(f"Downloaded {len(cobalt_data)} bytes from Cobalt video fallback. Saving to raw file...")
+                raw_cobalt_path = os.path.join(TEMP_DIR, f"{unique_id}_cobalt_raw")
+                with open(raw_cobalt_path, 'wb') as f:
+                    f.write(cobalt_data)
+                
+                success = transcode(raw_cobalt_path, transcoded_filepath)
+                file_to_send = transcoded_filepath if (success and os.path.exists(transcoded_filepath)) else raw_cobalt_path
+                
+                with open(file_to_send, 'rb') as f:
+                    final_data = f.read()
+                    
+                try:
+                    if os.path.exists(raw_cobalt_path):
+                        os.remove(raw_cobalt_path)
+                    if os.path.exists(transcoded_filepath):
+                        os.remove(transcoded_filepath)
+                except Exception as cleanup_err:
+                    logger.error(f"Failed to clean up Cobalt fallback files: {cleanup_err}")
+                    
                 return send_file(
-                    io.BytesIO(cobalt_data),
+                    io.BytesIO(final_data),
                     mimetype="video/mp4",
                     as_attachment=True,
                     download_name="video.mp4"
@@ -277,7 +329,8 @@ def download_video():
         except Exception as fallback_err:
             logger.error(f"Cobalt video fallback failed: {fallback_err}")
 
-        for possible_ext in ['.mp4', '.mkv', '.webm', '.m4a']:
+        # Final cleanup of any leftovers
+        for possible_ext in ['_raw.mp4', '_raw.webm', '_compatible.mp4', '_cobalt_raw']:
             possible_file = os.path.join(TEMP_DIR, unique_id + possible_ext)
             if os.path.exists(possible_file):
                 try:
