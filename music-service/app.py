@@ -68,6 +68,12 @@ def try_cobalt_fallback(url, download_mode="audio", audio_format="mp3"):
                             if stream_response.status == 200:
                                 return stream_response.read()
             logger.warning(f"[COBALT] Instance {instance} returned non-200 or no URL")
+        except urllib.error.HTTPError as he:
+            try:
+                err_body = he.read().decode('utf-8')
+            except:
+                err_body = "could not read body"
+            logger.warning(f"[COBALT] Instance {instance} failed with HTTPError {he.code}: {err_body}")
         except Exception as e:
             logger.warning(f"[COBALT] Instance {instance} failed: {e}")
             
