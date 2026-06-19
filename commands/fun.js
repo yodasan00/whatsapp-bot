@@ -644,10 +644,11 @@ sticker: async ({ sock, jid, msg, args }) => {
         // Run python rembg u2netp
         const pythonCmd = `${pythonExe} -c "from rembg import remove, new_session; from PIL import Image; remove(Image.open(r'${tempInput}'), session=new_session('u2netp')).save(r'${tempNoBg}')"`
         
-        exec(pythonCmd, (pyErr) => {
+        exec(pythonCmd, (pyErr, stdout, stderr) => {
           let finalInput = tempNoBg
           if (pyErr) {
-            console.error('[STICKER-BG] Background removal failed, falling back to original image:', pyErr)
+            console.error('[STICKER-BG] Background removal failed, falling back to original image. Error:', pyErr)
+            console.error('[STICKER-BG] Python stderr:', stderr)
             finalInput = tempInput
           }
 

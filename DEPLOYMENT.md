@@ -21,8 +21,8 @@ Great for starting out. You just run a virtual computer in the cloud and run you
     curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
     sudo apt install -y nodejs
     
-    # Install Python 3, pip, venv, and ffmpeg
-    sudo apt install -y python3 python3-pip python3-venv ffmpeg
+    # Install Python 3, pip, venv, ffmpeg, and unzip
+    sudo apt install -y python3 python3-pip python3-venv ffmpeg unzip
     
     # Install Git & Process Manager (PM2)
     sudo apt install -y git
