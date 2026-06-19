@@ -44,9 +44,11 @@ def download():
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': output_tmpl,
-        # Uncomment these lines if deploying to a VPS (e.g., AWS) to bypass IP bans using OAuth2:
-        # 'username': 'oauth2',
-        # 'password': '',
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['ios', 'android']
+            }
+        },
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': codec,
@@ -118,6 +120,11 @@ def download_video():
     ydl_opts = {
         'format': '22/18/best[ext=mp4]/best',
         'outtmpl': output_tmpl,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['ios', 'android']
+            }
+        },
         'quiet': True,
         'no_warnings': True,
     }
