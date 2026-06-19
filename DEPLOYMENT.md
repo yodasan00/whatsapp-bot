@@ -21,6 +21,9 @@ Great for starting out. You just run a virtual computer in the cloud and run you
     curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
     sudo apt install -y nodejs
     
+    # Install Python 3, pip, venv, and ffmpeg
+    sudo apt install -y python3 python3-pip python3-venv ffmpeg
+    
     # Install Git & Process Manager (PM2)
     sudo apt install -y git
     sudo npm install -g pm2
@@ -32,6 +35,12 @@ Great for starting out. You just run a virtual computer in the cloud and run you
     cd whatsapp-bot
     npm install
     
+    # Setup Python virtual environment
+    python3 -m venv music-service/.venv
+    source music-service/.venv/bin/activate
+    pip install -r music-service/requirements.txt
+    deactivate
+
     # Create .env file with your variables
     nano .env 
     # (Paste your contents, set WEB_URL=http://<your-ec2-ip>:3000)
@@ -41,6 +50,19 @@ Great for starting out. You just run a virtual computer in the cloud and run you
     pm2 save
     pm2 startup
     ```
+
+## 🔄 Smooth Updates (Automated Git & PM2)
+To push new updates to the bot smoothly without losing your WhatsApp login session or having to re-scan the QR code:
+
+1. Push your local changes to your git repository (e.g., GitHub).
+2. SSH into your AWS EC2 instance.
+3. Make the deploy script executable (first time only) and run it:
+   ```bash
+   chmod +x deploy.sh
+   ./deploy.sh
+   ```
+The script will pull the latest code, install Node.js and Python packages, update Deno, and restart the PM2 bot instance cleanly.
+
 
 ## Option 2: Docker (Professional)
 Better for stability and scaling.

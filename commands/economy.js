@@ -2,6 +2,7 @@ const { shopItems, getItem } = require('../state/shop')
 const { getInventory, addItem, removeItem } = require('../state/inventory')
 const { getXP, addXP } = require('../state/xp')
 const { resetCooldown, isOnCooldown } = require('../state/cooldown')
+const { generateToken } = require('../state/tokens')
 
 const commands = {
     shop: async ({ sock, jid, sender }) => {
@@ -17,11 +18,12 @@ const commands = {
         // Web Shop Link
         // Ensure WEB_URL is loaded correctly
         const baseUrl = process.env.WEB_URL || 'http://localhost:3000'
-        const link = `${baseUrl}/?user=${encodeURIComponent(sender)}&context=${encodeURIComponent(jid)}`
+        const token = generateToken(sender)
+        const link = `${baseUrl}/?user=${encodeURIComponent(sender)}&context=${encodeURIComponent(jid)}&token=${token}`
         
         // Send DM
         await sock.sendMessage(sender, { 
-            text: `🛒 *Your Shop Link:*\n${link}\n\n(Click to view your inventory)` 
+            text: `🛒 *Your Shop Link:*\n${link}\n\n⏳ Link expires in 15 minutes.` 
         })
 
         // If in group, notify
@@ -277,31 +279,32 @@ const commands = {
          }
 
          if (target === sender) {
-             await sock.sendMessage(jid, { text: '❌ You can’t rob yourself.' })
-             return
-         }
-         
-         // Check shield
-         const targetInv = getInventory(jid, target)
-         if (targetInv.shield && targetInv.shield > 0) {
-             removeItem(jid, target, 'shield')
-             await sock.sendMessage(jid, { 
-                 text: `🛡️ ROBBERY FAILED!\nThe target had a **Rob Shield**! It broke, but they are safe.`,
-                 mentions: [target]
-             })
-             // Notify victim? Maybe later.
+             await sock.sendMessage(jid, { text: '❌ You can\'t rob yourself.' })
              return
          }
 
+         // ✅ Check target wealth BEFORE rolling or consuming shield
+         const targetXP = getXP(jid, target)
+         if (targetXP < 20) {
+             await sock.sendMessage(jid, { text: '❌ Target is too poor to rob. (Has < 20 XP)' })
+             return
+         }
+
+         // Roll for success
          const success = Math.random() < 0.40 // 40% Success
-         
+
          if (success) {
-             const targetXP = getXP(jid, target)
-             if (targetXP < 20) {
-                 await sock.sendMessage(jid, { text: '❌ Target is too poor to rob. (Has < 20 XP)' })
+             // ✅ Only check/consume shield when rob WOULD have succeeded
+             const targetInv = getInventory(jid, target)
+             if (targetInv.shield && targetInv.shield > 0) {
+                 removeItem(jid, target, 'shield')
+                 await sock.sendMessage(jid, { 
+                     text: `🛡️ ROBBERY FOILED!\n@${target.split('@')[0]} had a *Rob Shield*! It shattered protecting them. Close one!`,
+                     mentions: [target]
+                 })
                  return
              }
-             
+
              // Steal 5-15%
              const percent = (Math.random() * 0.10) + 0.05
              const stealAmount = Math.floor(targetXP * percent)

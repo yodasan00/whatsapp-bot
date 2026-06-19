@@ -14,9 +14,7 @@ const ADMIN_COMMANDS = [
   'unmute',
   'adminonly',
   'adminall',
-  'tagall',
-  'disablegames',
-  'enablegames'
+  'tagall'
 ]
 
 // 👑 OWNER ONLY commands
@@ -25,8 +23,6 @@ const OWNER_COMMANDS = [
     'botmsg',
     'send'
 ]
-
-const { disableGames, enableGames } = require('../games/autoTrivia')
 
 async function handleAdminCommand({ command, sock, jid, msg, sender }) {
   // 1️⃣ Check Owner Commands First
@@ -124,106 +120,108 @@ async function handleAdminCommand({ command, sock, jid, msg, sender }) {
     return true
   }
 
+  // Check if the bot itself is admin for commands that require it
+  const BOT_ADMIN_REQUIRED_COMMANDS = ['kick', 'adminonly', 'adminall', 'mute']
+  if (BOT_ADMIN_REQUIRED_COMMANDS.includes(command)) {
+    const botJid = sock.user?.id ? sock.user.id.split(':')[0] + '@s.whatsapp.net' : null
+    if (botJid && !isUserAdmin(metadata, botJid)) {
+      await sock.sendMessage(jid, { text: '❌ I need to be a group admin to perform this action.' })
+      return true
+    }
+  }
+
   const mentioned =
     msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || []
 
-  switch (command) {
-    case 'admins': {
-      const admins = getAdmins(metadata)
-      await sock.sendMessage(jid, {
-        text: `👮 Admins:\n${admins.map(a => `@${a.split('@')[0]}`).join('\n')}`,
-        mentions: admins
-      })
-      return true
-    }
-
-    case 'disable': {
-      mutedGroups.add(jid)
-      await sock.sendMessage(jid, { text: '🔇 Bot is disabled in this group.' })
-      return true
-    }
-
-    case 'enable': {
-      mutedGroups.delete(jid)
-      await sock.sendMessage(jid, { text: '🔊 Bot is enabled in this group.' })
-      return true
-    }
-
-    case 'kick': {
-      if (mentioned.length === 0) {
-        await sock.sendMessage(jid, { text: '❌ Mention a user to kick.' })
+  try {
+    switch (command) {
+      case 'admins': {
+        const admins = getAdmins(metadata)
+        await sock.sendMessage(jid, {
+          text: `👮 Admins:\n${admins.map(a => `@${a.split('@')[0]}`).join('\n')}`,
+          mentions: admins
+        })
         return true
       }
 
-      await sock.groupParticipantsUpdate(jid, mentioned, 'remove')
-      await sock.sendMessage(jid, { text: '👢 kicked. Jaa side laag.' })
-      return true
-    }
-
-    case 'mute': {
-      if (mentioned.length === 0) {
-        await sock.sendMessage(jid, { text: '❌ Mention a user to mute.' })
+      case 'disable': {
+        mutedGroups.add(jid)
+        await sock.sendMessage(jid, { text: '🔇 Bot is disabled in this group.' })
         return true
       }
 
-      const set = mutedUsers.get(jid) || new Set()
-      mentioned.forEach(u => set.add(u))
-      mutedUsers.set(jid, set)
-
-      await sock.sendMessage(jid, {
-        text: '🔕 Chup laag! (messages will be deleted).'
-      })
-      return true
-    }
-
-    case 'unmute': {
-      const set = mutedUsers.get(jid)
-      if (!set) return true
-
-      mentioned.forEach(u => set.delete(u))
-      await sock.sendMessage(jid, { text: '🔊 User unmuted.' })
-      return true
-    }
-
-    case 'adminonly': {
-      await sock.groupSettingUpdate(jid, 'announcement')
-      await sock.sendMessage(jid, {
-        text: '🔒 Only admins can send messages now.'
-      })
-      return true
-    }
-
-    case 'adminall': {
-      await sock.groupSettingUpdate(jid, 'not_announcement')
-      await sock.sendMessage(jid, {
-        text: '🔓 Everyone can send messages now.'
-      })
-      return true
-    }
-
-    case 'tagall': {
-      const members = metadata.participants.map(p => p.id)
-
-      await sock.sendMessage(jid, {
-        text: '📢 Attention everyone!',
-        mentions: members
-      })
-
-      return true
-    }
-
-    case 'disablegames': {
-        disableGames(jid)
-        await sock.sendMessage(jid, { text: '🚫 Auto-Trivia & Mystery Box disabled for this group.' })
+      case 'enable': {
+        mutedGroups.delete(jid)
+        await sock.sendMessage(jid, { text: '🔊 Bot is enabled in this group.' })
         return true
-    }
+      }
 
-    case 'enablegames': {
-        enableGames(jid)
-        await sock.sendMessage(jid, { text: '✅ Auto-Trivia & Mystery Box enabled!' })
+      case 'kick': {
+        if (mentioned.length === 0) {
+          await sock.sendMessage(jid, { text: '❌ Mention a user to kick.' })
+          return true
+        }
+
+        await sock.groupParticipantsUpdate(jid, mentioned, 'remove')
+        await sock.sendMessage(jid, { text: '👢 kicked. Jaa side laag.' })
         return true
-    }
+      }
 
+      case 'mute': {
+        if (mentioned.length === 0) {
+          await sock.sendMessage(jid, { text: '❌ Mention a user to mute.' })
+          return true
+        }
+
+        const set = mutedUsers.get(jid) || new Set()
+        mentioned.forEach(u => set.add(u))
+        mutedUsers.set(jid, set)
+
+        await sock.sendMessage(jid, {
+          text: '🔕 Chup laag! (messages will be deleted).'
+        })
+        return true
+      }
+
+      case 'unmute': {
+        const set = mutedUsers.get(jid)
+        if (!set) return true
+
+        mentioned.forEach(u => set.delete(u))
+        await sock.sendMessage(jid, { text: '🔊 User unmuted.' })
+        return true
+      }
+
+      case 'adminonly': {
+        await sock.groupSettingUpdate(jid, 'announcement')
+        await sock.sendMessage(jid, {
+          text: '🔒 Only admins can send messages now.'
+        })
+        return true
+      }
+
+      case 'adminall': {
+        await sock.groupSettingUpdate(jid, 'not_announcement')
+        await sock.sendMessage(jid, {
+          text: '🔓 Everyone can send messages now.'
+        })
+        return true
+      }
+
+      case 'tagall': {
+        const members = metadata.participants.map(p => p.id)
+
+        await sock.sendMessage(jid, {
+          text: '📢 Attention everyone!',
+          mentions: members
+        })
+
+        return true
+      }
+    }
+  } catch (error) {
+    console.error(`[ADMIN COMMAND ERROR] Failed to execute .${command}:`, error)
+    await sock.sendMessage(jid, { text: `❌ Failed to execute .${command}: ${error.message || error}` })
   }
 
   return true

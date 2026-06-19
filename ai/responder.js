@@ -5,8 +5,10 @@ const { addToMemory, getMemory } = require('../state/aiMemory')
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
 const MODELS = [
-  'arcee-ai/trinity-large-preview:free',
-  'liquid/lfm-2.5-1.2b-instruct:free',
+  'openai/gpt-oss-120b:free',
+  'openai/gpt-oss-20b:free',
+  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+  'nvidia/nemotron-3-nano-30b-a3b:free'
 ]
 
 async function aiReply(jid, userText) {

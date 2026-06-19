@@ -1,7 +1,7 @@
 const fs = require('fs')
-const path = require('path')
+const paths = require('../utils/paths')
 
-const SETTINGS_FILE = path.join(__dirname, 'global_settings.json')
+const SETTINGS_FILE = paths.getSettingsPath()
 
 // Default settings
 let globalSettings = {

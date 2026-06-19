@@ -27,7 +27,6 @@ const { getGame, endGame } = require('./state/guessGame')
 const { checkUnscramble, hasUnscramble } = require('./games/unscramble')
 const { addXP } = require('./state/xp')
 const { startServer } = require('./server/app')
-const { addGroup, startRandomEvents, handleEventReply } = require('./games/autoTrivia') // ⭐ Added this
 
 // ⭐ stanzaId tracker
 const { rememberBotMessage } = require('./state/botMessages')
@@ -36,8 +35,10 @@ const { rememberBotMessage } = require('./state/botMessages')
 const { mutedGroups } = require('./state/mutedGroups')
 const { mutedUsers } = require('./state/mutedUsers')
 
+const paths = require('./utils/paths')
+
 async function startBot() {
-  const { state, saveCreds } = await useMultiFileAuthState('./auth')
+  const { state, saveCreds } = await useMultiFileAuthState(paths.getAuthPath())
   const { version, isLatest } = await fetchLatestBaileysVersion()
   console.log(`Using WA v${version.join('.')}, isLatest: ${isLatest}`)
 
@@ -45,7 +46,9 @@ async function startBot() {
     version,
     auth: state,
     logger: Pino({ level: 'silent' }),
-    browser: ['Ubuntu', 'Chrome', '20.0.04']
+    syncFullHistory: false,
+    generateHighQualityLinkPreview: true,
+    browser: ['Yaadobot', 'Chrome', '1.0.0']
   })
 
   /* =====================================================
@@ -65,6 +68,69 @@ async function startBot() {
   /* ---------- AUTH ---------- */
   sock.ev.on('creds.update', saveCreds)
 
+  /* ---------- CONTACTS SYNC ---------- */
+  sock.ev.on('messaging-history.set', ({ contacts: historyContacts }) => {
+    if (historyContacts) {
+      const { saveContactName } = require('./state/contacts')
+      const { saveLidMapping } = require('./state/lidMap')
+      for (const contact of historyContacts) {
+        if (contact.id && contact.id.endsWith('@lid') && contact.phoneNumber) {
+          const pnJid = contact.phoneNumber.endsWith('@s.whatsapp.net') ? contact.phoneNumber : `${contact.phoneNumber}@s.whatsapp.net`
+          saveLidMapping(contact.id, pnJid)
+        }
+        const name = contact.name || contact.verifiedName || contact.notify
+        if (contact.id && name) {
+          saveContactName(contact.id, name)
+        }
+      }
+    }
+  })
+
+  sock.ev.on('contacts.upsert', (newContacts) => {
+    const { saveContactName } = require('./state/contacts')
+    const { saveLidMapping } = require('./state/lidMap')
+    for (const contact of newContacts) {
+      if (contact.id && contact.id.endsWith('@lid') && contact.phoneNumber) {
+        const pnJid = contact.phoneNumber.endsWith('@s.whatsapp.net') ? contact.phoneNumber : `${contact.phoneNumber}@s.whatsapp.net`
+        saveLidMapping(contact.id, pnJid)
+      }
+      const name = contact.name || contact.verifiedName || contact.notify
+      if (contact.id && name) {
+        saveContactName(contact.id, name)
+      }
+    }
+  })
+
+  sock.ev.on('contacts.update', (updates) => {
+    const { saveContactName } = require('./state/contacts')
+    const { saveLidMapping } = require('./state/lidMap')
+    for (const update of updates) {
+      if (update.id && update.id.endsWith('@lid') && update.phoneNumber) {
+        const pnJid = update.phoneNumber.endsWith('@s.whatsapp.net') ? update.phoneNumber : `${update.phoneNumber}@s.whatsapp.net`
+        saveLidMapping(update.id, pnJid)
+      }
+      const name = update.name || update.verifiedName || update.notify
+      if (update.id && name) {
+        saveContactName(update.id, name)
+      }
+    }
+  })
+
+  sock.ev.on('lid-mapping.update', (mapping) => {
+    const { saveLidMapping } = require('./state/lidMap')
+    if (mapping) {
+      if (Array.isArray(mapping)) {
+        for (const map of mapping) {
+          if (map.lid && map.pn) {
+            saveLidMapping(map.lid, map.pn)
+          }
+        }
+      } else if (mapping.lid && mapping.pn) {
+        saveLidMapping(mapping.lid, mapping.pn)
+      }
+    }
+  })
+
   /* ---------- CONNECTION ---------- */
   sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
     console.log('Connection Update:', connection)
@@ -75,11 +141,6 @@ async function startBot() {
 
     if (connection === 'open') {
       console.log('✅ WhatsApp connected')
-      
-      // ⭐ Fetch and register ALL groups
-      const groups = await sock.groupFetchAllParticipating()
-      Object.keys(groups).forEach(jid => addGroup(jid))
-      console.log(`🌍 Auto-Trivia: Registered ${Object.keys(groups).length} groups.`)
     }
 
     if (connection === 'close') {
@@ -94,7 +155,18 @@ async function startBot() {
   console.log('OPENROUTER KEY EXISTS:', !!process.env.OPENROUTER_API_KEY)
 
   /* ---------- MESSAGE ENTRY ---------- */
-  sock.ev.on('messages.upsert', async ({ messages }) => {
+  sock.ev.on('messages.upsert', async ({ messages, type }) => {
+    // Save contact pushNames dynamically from all messages (even historical / sync messages)
+    const { saveContactName } = require('./state/contacts')
+    for (const m of messages) {
+      const s = m.key.participant || m.key.remoteJid
+      if (s && m.pushName) {
+        saveContactName(s, m.pushName)
+      }
+    }
+
+    if (type === 'append') return
+
     const msg = messages[0]
     if (!msg?.message || msg.key.fromMe) return
 
@@ -112,7 +184,11 @@ async function startBot() {
     if (isGroup) {
       const muted = mutedUsers.get(jid)
       if (muted?.has(sender)) {
-        await sock.sendMessage(jid, { delete: msg.key })
+        try {
+          await sock.sendMessage(jid, { delete: msg.key })
+        } catch (err) {
+          console.error('[MUTED] Failed to delete message from muted user (likely missing admin permissions):', err)
+        }
         return
       }
     }
@@ -215,17 +291,6 @@ async function startBot() {
       return
     }
 
-    /* ---------- AUTO TRIVIA ---------- */
-    // ⭐ Check if this is an answer to a random event
-    const triviaResult = handleEventReply(jid, sender, text)
-    if (triviaResult) {
-      await sock.sendMessage(jid, { 
-        text: `🎉 *Correct!* @${sender.split('@')[0]} won +${triviaResult.reward} XP! 🧠`,
-        mentions: [sender]
-      }, { quoted: msg })
-      return
-    }
-
     /* ---------- AI ---------- */
 
     console.log('AI BLOCK REACHED')
@@ -241,12 +306,35 @@ async function startBot() {
       { quoted: msg }
     )
   })
-
-  // ⭐ SCHEDULER: Check for random events every 5 minutes
-  setInterval(() => {
-    startRandomEvents(sock)
-  }, 5 * 60 * 1000)
 }
 
+const { spawn } = require('child_process')
+const path = require('path')
+
+function startMusicService() {
+  const scriptPath = path.join(__dirname, 'music-service', 'app.py')
+  console.log(`[MUSIC] Starting Python music microservice: python "${scriptPath}"`)
+  const pyProcess = spawn('python', [scriptPath], {
+    stdio: 'inherit',
+    shell: true
+  })
+
+  pyProcess.on('error', (err) => {
+    console.error('❌ Failed to start Python Music Microservice:', err)
+  })
+
+  // Ensure python process dies when Node exit/SIGINT/SIGTERM is received
+  process.on('exit', () => pyProcess.kill())
+  process.on('SIGINT', () => {
+    pyProcess.kill()
+    process.exit()
+  })
+  process.on('SIGTERM', () => {
+    pyProcess.kill()
+    process.exit()
+  })
+}
+
+startMusicService()
 startServer()
 startBot()

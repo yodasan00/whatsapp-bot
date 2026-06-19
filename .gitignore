@@ -1,2 +1,10 @@
 .env
 *auth
+node_modules/
+temp/
+downloads/
+music-service/.venv/
+music-service/temp/
+*.log
+*player-script.js
+state/*.json

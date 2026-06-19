@@ -1,7 +1,11 @@
 const axios = require('axios')
 const fs = require('fs')
 const path = require('path')
+const { downloadMediaMessage } = require('@whiskeysockets/baileys')
+const { exec } = require('child_process')
 const gis = require('g-i-s')
+const yts = require('yt-search')
+const play = require('play-dl')
 const { startGuessGame } = require('../games/guessNumber')
 const { startMathGame } = require('../games/mathGame') // ⭐ Added this
 const { startTimeBomb, passBomb } = require('../games/timeBomb') // ⭐ Added this
@@ -11,12 +15,81 @@ const { addItem, getInventory } = require('../state/inventory')
 const { isOnCooldown } = require('../state/cooldown')
 const { enqueue } = require('../handlers/playQueue')
 
+async function processAudioRequest({ sock, jid, args, ptt }) {
+  const commandName = ptt ? 'plays' : 'play';
+  if (!args.length) {
+    await sock.sendMessage(jid, {
+      text: `❌ Usage: *.${commandName} <song name>*`
+    })
+    return
+  }
 
+  const query = args.join(' ')
+
+  const result = await enqueue(jid, async () => {
+    try {
+      const searchResult = await yts(query)
+      const video = searchResult.videos.length > 0 ? searchResult.videos[0] : null
+
+      if (!video) {
+        throw new Error('Song not found')
+      }
+
+      // Check duration limit (20 minutes = 1200 seconds)
+      const limitSeconds = 20 * 60
+      const durationSeconds = video.seconds || (video.duration ? video.duration.seconds : 0)
+      if (durationSeconds > limitSeconds) {
+        throw new Error(`Video is too long! Limit is 20 minutes (requested: ${video.timestamp || 'unknown'}).`)
+      }
+
+      await sock.sendMessage(jid, {
+        text: `🎵 *Now Playing:* \n*Title:* ${video.title}\n*Channel:* ${video.author.name}`
+      })
+
+      // Fetch the audio buffer from the Flask microservice
+      const codec = ptt ? 'opus' : 'mp3'
+      const flaskUrl = `http://127.0.0.1:5005/download?url=${encodeURIComponent(video.url)}&codec=${codec}`
+      console.log(`[MUSIC] Fetching audio (${codec}) from Flask microservice: ${flaskUrl}`)
+      
+      const response = await axios.get(flaskUrl, {
+        responseType: 'arraybuffer',
+        timeout: 120000 // 2 minutes timeout
+      })
+
+      const audioBuffer = Buffer.from(response.data)
+      const mimetype = ptt ? 'audio/ogg; codecs=opus' : 'audio/mp4'
+
+      await sock.sendMessage(jid, {
+        audio: audioBuffer,
+        mimetype: mimetype,
+        ptt: ptt
+      })
+
+    } catch (err) {
+      console.error(`[${commandName.toUpperCase()}] error:`, err.message)
+      let msg = `⚠️ Failed to play music.`
+      if (err.message === 'Song not found') {
+        msg = '❌ Song not found. Try a different name.'
+      } else if (err.message.includes('too long')) {
+        msg = `❌ ${err.message}`
+      } else {
+        msg = `❌ Error: ${err.message || 'Server timeout or connection failed.'}`
+      }
+      await sock.sendMessage(jid, { text: msg })
+    }
+  })
+
+  if (result.queued) {
+    await sock.sendMessage(jid, {
+      text: `⏳ Added to queue (position ${result.position})`
+    })
+  }
+}
 
 const commands = {
-  dice: async ({ sock, jid }) => {
-    const roll = Math.floor(Math.random() * 6) + 1
-    await sock.sendMessage(jid, { text: `🎲 ${roll}` })
+  roll: async ({ sock, jid }) => {
+    const result = Math.floor(Math.random() * 6) + 1
+    await sock.sendMessage(jid, { text: `🎲 You rolled a *${result}*!` })
   },
 
   coin: async ({ sock, jid }) => {
@@ -31,76 +104,92 @@ const commands = {
     }
 
     const prompt = args.join(' ')
-    const searchPrompt = `${prompt} aesthetic`
-    await sock.sendMessage(jid, { text: `🔍 Sending Images for: *${prompt}*...` })
+    await sock.sendMessage(jid, { text: `🔍 Searching images for: *${prompt}*...` })
 
     try {
-        const results = await new Promise((resolve, reject) => {
-            gis(searchPrompt, (error, results) => {
-                if (error) reject(error)
-                else resolve(results)
-            })
-        })
-
-        if (!results || !results.length) {
-            await sock.sendMessage(jid, { text: '⚠️ No images found.' })
-            return
+      const url = `https://www.bing.com/images/search?q=${encodeURIComponent(prompt + ' HD')}&qft=+filterui:imagesize-large&adlt=off&cc=US&setmkt=en-us&form=HDRSC2&first=1`
+      const response = await axios.get(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Cookie': 'SRCHHPGUSR=ADLT=OFF&NRSLT=-1; SRCHUSR=DOB=20200101; _EDGE_S=F=1&mkt=en-us'
         }
+      })
 
-        // Pick 4 random images from the top 15 to ensure relevance but variety
-        const topResults = results.slice(0, 15)
-        const selected = []
-        for (let i = 0; i < 4; i++) {
-            if (topResults.length === 0) break
-            const randomIndex = Math.floor(Math.random() * topResults.length)
-            selected.push(topResults[randomIndex])
-            topResults.splice(randomIndex, 1)
-        }
+      const cheerio = require('cheerio')
+      const $ = cheerio.load(response.data)
+      const images = []
 
-        const tempDir = path.join(__dirname, '../temp')
-        if (!fs.existsSync(tempDir)) {
-            fs.mkdirSync(tempDir, { recursive: true })
-        }
-
-        const promises = selected.map(async (imgData, i) => {
-            const url = imgData.url
-            const uniqueId = `${Date.now()}_${i}_${Math.random().toString(36).substring(7)}`
-            const filePath = path.join(tempDir, `img_${uniqueId}.jpg`)
-            
-            try {
-                const res = await axios.get(url, { 
-                    responseType: 'arraybuffer',
-                    timeout: 20000,
-                    headers: { 'User-Agent': 'Mozilla/5.0' } 
-                })
-                fs.writeFileSync(filePath, res.data)
-                
-                await sock.sendMessage(jid, { 
-                    image: { url: filePath }
-                })
-
-                // Delete immediately after send
-                if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
-                return true
-
-            } catch (e) {
-                console.error(`Failed to image ${i}:`, e.message)
-                // Try to cleanup if file was created
-                if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
-                return false
+      $('.iusc').each((i, elem) => {
+        const m = $(elem).attr('m')
+        if (m) {
+          try {
+            const data = JSON.parse(m)
+            if (data.murl) {
+              images.push(data.murl)
             }
-        })
-
-        const sentResults = await Promise.all(promises)
-        const sentCount = sentResults.filter(s => s).length
-
-        if (sentCount === 0) {
-            await sock.sendMessage(jid, { text: '⚠️ Failed to grab any of the images. Try again.' })
+          } catch (e) {}
         }
+      })
+
+      if (!images.length) {
+        await sock.sendMessage(jid, { text: '⚠️ No images found.' })
+        return
+      }
+
+      // Pick 4 random images from the top 15 results
+      const topResults = images.slice(0, 15)
+      const selected = []
+      for (let i = 0; i < 4; i++) {
+        if (topResults.length === 0) break
+        const randomIndex = Math.floor(Math.random() * topResults.length)
+        selected.push(topResults[randomIndex])
+        topResults.splice(randomIndex, 1)
+      }
+
+      const tempDir = path.join(__dirname, '../temp')
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true })
+      }
+
+      const promises = selected.map(async (imageUrl, i) => {
+        const uniqueId = `${Date.now()}_${i}_${Math.random().toString(36).substring(7)}`
+        const filePath = path.join(tempDir, `img_${uniqueId}.jpg`)
+
+        try {
+          const res = await axios.get(imageUrl, {
+            responseType: 'arraybuffer',
+            timeout: 15000,
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+          })
+          fs.writeFileSync(filePath, res.data)
+
+          await sock.sendMessage(jid, {
+            image: { url: filePath }
+          })
+
+          // Delete immediately after send
+          if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+          return true
+
+        } catch (e) {
+          console.error(`Failed to download/send image ${i}:`, e.message)
+          if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+          return false
+        }
+      })
+
+      const sentResults = await Promise.all(promises)
+      const sentCount = sentResults.filter(s => s).length
+
+      if (sentCount === 0) {
+        await sock.sendMessage(jid, { text: '⚠️ Failed to grab any of the images. Try again.' })
+      }
 
     } catch (e) {
-        console.error('GIS Error:', e)
-        await sock.sendMessage(jid, { text: '⚠️ Error searching for images.' })
+      console.error('Bing Scraper Error:', e)
+      await sock.sendMessage(jid, { text: '⚠️ Error searching for images.' })
     }
   },
 
@@ -385,122 +474,12 @@ fish: async ({ sock, jid, sender }) => {
 },
 
 plays: async ({ sock, jid, args }) => {
-  if (!args.length) {
-    await sock.sendMessage(jid, {
-      text: '❌ Usage: *.play <song name>*'
-    })
-    return
-  }
+    await processAudioRequest({ sock, jid, args, ptt: true })
+  },
 
-  const query = args.join(' ')
-  const API_BASE = 'https://music.yaadosan.in'
-
-  const position = await enqueue(jid, async () => {
-    try {
-        let song
-        /* SEARCH */
-        const res = await axios.post(`${API_BASE}/search`, { query }, { timeout: 10000 })
-        song = res.data
-
-        if (!song || !song.title) {
-            throw new Error('Song not found')
-        }
-
-        await sock.sendMessage(jid, {
-            text: `🎵 *Now Playing:* \n*Title:* ${song.title}\n*Artist:* ${song.artist}`
-        })
-
-        /* DOWNLOAD OGG */
-        const audioRes = await axios.post(
-            `${API_BASE}/download/voice`,
-            { query },
-            { responseType: 'arraybuffer', timeout: 120000 }
-        )
-
-        const audioBuffer = Buffer.from(audioRes.data)
-
-        await sock.sendMessage(jid, {
-            audio: audioBuffer,
-            mimetype: 'audio/ogg; codecs=opus',
-            ptt: true
-        })
-
-    } catch (err) {
-        console.error('Plays error:', err.message)
-        let msg = '⚠️ Failed to play song.'
-        if (err.message.includes('404') || err.message === 'Song not found') msg = '❌ Song not found.'
-        else if (err.code === 'ECONNABORTED') msg = '⏳ Request timed out. Server is slow.'
-        else if (err.message.includes('500')) msg = '🔥 Music server error.'
-        
-        await sock.sendMessage(jid, { text: msg })
-    }
-  })
-
-  if (position > 1) {
-    await sock.sendMessage(jid, {
-      text: `⏳ Added to queue (position ${position})`
-    })
-  }
-},
-
-play: async ({ sock, jid, args }) => {
-  if (!args.length) {
-    await sock.sendMessage(jid, {
-      text: '❌ Usage: *.plays <song name>*'
-    })
-    return
-  }
-
-  const query = args.join(' ')
-  const API_BASE = 'https://music.yaadosan.in'
-
-  const position = await enqueue(jid, async () => {
-    try {
-        let song
-        /* SEARCH */
-        const res = await axios.post(`${API_BASE}/search`, { query }, { timeout: 10000 })
-        song = res.data
-        
-        if (!song || !song.title) {
-            throw new Error('Song not found')
-        }
-
-        await sock.sendMessage(jid, {
-            text: `🎵 *Now Playing:* \n*Title:* ${song.title}\n*Artist:* ${song.artist}`
-        })
-
-        /* DOWNLOAD M4A */
-        const audioRes = await axios.post(
-            `${API_BASE}/download/m4a`,
-            { query },
-            { responseType: 'arraybuffer', timeout: 180000 }
-        )
-
-        const audioBuffer = Buffer.from(audioRes.data)
-
-        await sock.sendMessage(jid, {
-            audio: audioBuffer,
-            mimetype: 'audio/mp4',
-            ptt: false
-        })
-
-    } catch (err) {
-        console.error('Play error:', err.message)
-        let msg = '⚠️ Failed to play music.'
-        if (err.message.includes('404') || err.message === 'Song not found') msg = '❌ Song not found. Try a different name.'
-        else if (err.code === 'ECONNABORTED') msg = '⏳ Request timed out. The song is too large or server is busy.'
-        else if (err.message.includes('500')) msg = '🔥 Music server error. Try again later.'
-        
-        await sock.sendMessage(jid, { text: msg })
-    }
-  })
-
-  if (position > 1) {
-    await sock.sendMessage(jid, {
-      text: `⏳ Added to queue (position ${position})`
-    })
-  }
-},
+  play: async ({ sock, jid, args }) => {
+    await processAudioRequest({ sock, jid, args, ptt: false })
+  },
 
 lyrics: async ({ sock, jid, args }) => {
   if (!args.length) {
@@ -511,28 +490,28 @@ lyrics: async ({ sock, jid, args }) => {
   }
 
   const query = args.join(' ')
-  const API_BASE = 'https://lyrics.yaadosan.in'
+  await sock.sendMessage(jid, { text: `🔍 Searching lyrics for: *${query}*...` })
 
   try {
-    const res = await axios.get(`${API_BASE}/api/v2/lyrics`, {
-      params: {
-        platform: 'youtube',
-        title: query
-      },
-      timeout: 15000
+    const res = await axios.get(`https://lrclib.net/api/search`, {
+      params: { q: query },
+      headers: { 'User-Agent': 'Yaadobot/1.0.0 (contact@yaadosan.in)' },
+      timeout: 25000,
+      family: 4
     })
 
-    const data = res.data?.data
+    const results = res.data
 
-    if (!data || !data.lyrics) {
+    if (!results || results.length === 0 || !results[0].plainLyrics) {
       await sock.sendMessage(jid, {
         text: '😔 Lyrics not found.'
       })
       return
     }
 
+    const data = results[0]
     // WhatsApp safe length
-    const lyrics = data.lyrics.slice(0, 3500)
+    const lyrics = data.plainLyrics.slice(0, 3500)
 
     await sock.sendMessage(jid, {
       text:
@@ -550,11 +529,430 @@ ${lyrics}`
   }
 },
 
+video: async ({ sock, jid, args }) => {
+  if (!args.length) {
+    await sock.sendMessage(jid, { text: '❌ Usage: *.video <song/video name>*' })
+    return
+  }
+
+  const query = args.join(' ')
+  await sock.sendMessage(jid, { text: `🔍 Searching video for: *${query}*...` })
+
+  try {
+    const searchResult = await yts(query)
+    const video = searchResult.videos.length > 0 ? searchResult.videos[0] : null
+
+    if (!video) {
+      await sock.sendMessage(jid, { text: '❌ Video not found. Try a different name.' })
+      return
+    }
+
+    // Check duration limit (5 minutes = 300 seconds to prevent massive files)
+    const limitSeconds = 5 * 60
+    const durationSeconds = video.seconds || (video.duration ? video.duration.seconds : 0)
+    if (durationSeconds > limitSeconds) {
+      await sock.sendMessage(jid, { 
+        text: `❌ Video is too long! Limit is 5 minutes (requested: ${video.timestamp || 'unknown'}).` 
+      })
+      return
+    }
+
+    await sock.sendMessage(jid, {
+      text: `📥 *Downloading video:* \n*Title:* ${video.title}\n*Channel:* ${video.author.name}\n*Duration:* ${video.timestamp}`
+    })
+
+    // Fetch the video buffer from the Flask microservice
+    const flaskUrl = `http://127.0.0.1:5005/download_video?url=${encodeURIComponent(video.url)}`
+    console.log(`[VIDEO] Fetching video from Flask microservice: ${flaskUrl}`)
+    
+    const response = await axios.get(flaskUrl, {
+      responseType: 'arraybuffer',
+      timeout: 180000 // 3 minutes timeout
+    })
+
+    const videoBuffer = Buffer.from(response.data)
+
+    await sock.sendMessage(jid, {
+      video: videoBuffer,
+      mimetype: 'video/mp4',
+      caption: `📹 *${video.title}*\nChannel: ${video.author.name}`
+    })
+
+  } catch (err) {
+    console.error(`[VIDEO] error:`, err.message)
+    await sock.sendMessage(jid, { 
+      text: `❌ Error downloading video: ${err.message || 'Server timeout or connection failed.'}` 
+    })
+  }
+},
+
+sticker: async ({ sock, jid, msg, args }) => {
+  const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage
+  const isDirectImage = msg.message?.imageMessage
+  const isQuotedImage = quoted?.imageMessage
+
+  // Helper to wrap text
+  const wrapText = (text, maxChars = 20) => {
+    const words = text.split(' ')
+    let currentLine = ''
+    const lines = []
+    for (const word of words) {
+      if ((currentLine + ' ' + word).trim().length <= maxChars) {
+        currentLine = (currentLine + ' ' + word).trim()
+      } else {
+        if (currentLine) lines.push(currentLine)
+        currentLine = word
+      }
+    }
+    if (currentLine) lines.push(currentLine)
+    return lines.join('\n')
+  }
+
+  // Case 1: Image media sticker (with optional background removal)
+  if (isDirectImage || isQuotedImage) {
+    const opt = args?.[0]?.toLowerCase()
+    const removeBg = opt === 'edge' || opt === 'nobg'
+
+    await sock.sendMessage(jid, { text: removeBg ? '⏳ Isolating subject & creating sticker...' : '⏳ Creating sticker...' })
+
+    const tempInput = path.join(__dirname, `../temp/input_${Date.now()}.png`).replace(/\\/g, '/')
+    const tempNoBg = path.join(__dirname, `../temp/nobg_${Date.now()}.png`).replace(/\\/g, '/')
+    const tempOutput = path.join(__dirname, `../temp/output_${Date.now()}.webp`).replace(/\\/g, '/')
+
+    try {
+      const mediaMsg = isDirectImage ? msg : { key: msg.key, message: quoted }
+      const buffer = await downloadMediaMessage(mediaMsg, 'buffer', {}, { rekey: false })
+      fs.writeFileSync(tempInput, buffer)
+
+      if (removeBg) {
+        // Resolve python executable path (check virtual env first)
+        let pythonExe = 'python'
+        const winVenv = path.join(__dirname, '../music-service/.venv/Scripts/python.exe')
+        const nixVenv = path.join(__dirname, '../music-service/.venv/bin/python')
+        if (fs.existsSync(winVenv)) {
+          pythonExe = `"${winVenv}"`
+        } else if (fs.existsSync(nixVenv)) {
+          pythonExe = `"${nixVenv}"`
+        }
+
+        // Run python rembg u2netp
+        const pythonCmd = `${pythonExe} -c "from rembg import remove, new_session; from PIL import Image; remove(Image.open(r'${tempInput}'), session=new_session('u2netp')).save(r'${tempNoBg}')"`
+        
+        exec(pythonCmd, (pyErr) => {
+          let finalInput = tempNoBg
+          if (pyErr) {
+            console.error('[STICKER-BG] Background removal failed, falling back to original image:', pyErr)
+            finalInput = tempInput
+          }
+
+          const filter = 'scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(512-iw)/2:(512-ih)/2:color=white@0'
+          const ffmpegCmd = `ffmpeg -i "${finalInput}" -vcodec libwebp -vf "${filter}" -y "${tempOutput}"`
+          
+          exec(ffmpegCmd, async (err) => {
+            if (err) {
+              console.error('[STICKER] ffmpeg error:', err)
+              await sock.sendMessage(jid, { text: '❌ Failed to process image.' })
+              cleanup()
+              return
+            }
+            sendOutputAndCleanup()
+          })
+        })
+      } else {
+        const filter = 'scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(512-iw)/2:(512-ih)/2:color=white@0'
+        const ffmpegCmd = `ffmpeg -i "${tempInput}" -vcodec libwebp -vf "${filter}" -y "${tempOutput}"`
+        
+        exec(ffmpegCmd, async (err) => {
+          if (err) {
+            console.error('[STICKER] ffmpeg error:', err)
+            await sock.sendMessage(jid, { text: '❌ Failed to process image.' })
+            cleanup()
+            return
+          }
+          sendOutputAndCleanup()
+        })
+      }
+
+      async function sendOutputAndCleanup() {
+        try {
+          const webpBuffer = fs.readFileSync(tempOutput)
+          await sock.sendMessage(jid, { sticker: webpBuffer })
+        } catch (readErr) {
+          console.error('[STICKER] Read error:', readErr)
+          await sock.sendMessage(jid, { text: '❌ Failed to read processed sticker.' })
+        }
+        cleanup()
+      }
+
+    } catch (err) {
+      console.error('[STICKER] error:', err.message)
+      await sock.sendMessage(jid, { text: '❌ Error: Could not download media.' })
+      cleanup()
+    }
+
+    function cleanup() {
+      try { if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput) } catch (e) {}
+      try { if (fs.existsSync(tempNoBg)) fs.unlinkSync(tempNoBg) } catch (e) {}
+      try { if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput) } catch (e) {}
+    }
+    return
+  }
+
+  // Case 2: Quoted text message (WhatsApp chat bubble sticker)
+  const quotedText = quoted?.conversation || quoted?.extendedTextMessage?.text || quoted?.imageMessage?.caption || quoted?.videoMessage?.caption
+  if (quoted && quotedText) {
+    await sock.sendMessage(jid, { text: '⏳ Creating chat bubble sticker...' })
+
+    const participant = msg.message?.extendedTextMessage?.contextInfo?.participant || msg.message?.extendedTextMessage?.contextInfo?.sender
+    const { getContactName, saveContactName } = require('../state/contacts')
+    const { saveLidMapping } = require('../state/lidMap')
+    let username = getContactName(participant)
+    
+    // If username is still the phone number, look up in group metadata or Baileys contact store
+    if (username === participant.split('@')[0] || username === 'User') {
+      // 1. Try Baileys' native lid-mapping database lookup
+      if (participant.endsWith('@s.whatsapp.net')) {
+        const pnUser = participant.split('@')[0]
+        try {
+          const stored = await sock.authState?.keys?.get('lid-mapping', [pnUser])
+          const lidUser = stored?.[pnUser]
+          if (lidUser) {
+            const lidJid = `${lidUser}@lid`
+            const name = getContactName(lidJid)
+            if (name && name !== lidUser) {
+              username = name
+              saveContactName(participant, name)
+              saveLidMapping(lidJid, participant)
+            }
+          }
+        } catch (e) {
+          console.error('[STICKER-BUBBLE] Failed to query lid-mapping from keys:', e)
+        }
+      } else if (participant.endsWith('@lid')) {
+        const lidUser = participant.split('@')[0]
+        try {
+          const stored = await sock.authState?.keys?.get('lid-mapping', [`${lidUser}_reverse`])
+          const pnUser = stored?.[`${lidUser}_reverse`]
+          if (pnUser) {
+            const pnJid = `${pnUser}@s.whatsapp.net`
+            const name = getContactName(pnJid)
+            if (name && name !== pnUser) {
+              username = name
+              saveContactName(participant, name)
+              saveLidMapping(participant, pnJid)
+            }
+          }
+        } catch (e) {
+          console.error('[STICKER-BUBBLE] Failed to query reverse lid-mapping from keys:', e)
+        }
+      }
+
+      // 2. Try Group Metadata Lookup (if in a group and still unresolved)
+      if ((username === participant.split('@')[0] || username === 'User') && jid.endsWith('@g.us')) {
+        try {
+          const groupMeta = await sock.groupMetadata(jid)
+          const cleanPart = participant.split('@')[0]
+          const found = groupMeta.participants.find(p => {
+            const cleanP = p.id.split('@')[0]
+            const cleanPhone = p.phoneNumber ? p.phoneNumber.split('@')[0] : ''
+            return cleanP === cleanPart || cleanPhone === cleanPart
+          })
+          if (found) {
+            const name = found.name || found.verifiedName || found.notify
+            if (name) {
+              username = name
+              saveContactName(participant, name)
+              if (found.id && found.phoneNumber) {
+                const pnJid = found.phoneNumber.endsWith('@s.whatsapp.net') ? found.phoneNumber : `${found.phoneNumber}@s.whatsapp.net`
+                saveLidMapping(found.id, pnJid)
+                saveContactName(found.id, name)
+                saveContactName(pnJid, name)
+              }
+            }
+          }
+        } catch (e) {
+          console.error('[STICKER-BUBBLE] Failed to fetch group metadata for name resolution:', e)
+        }
+      }
+
+      // 3. Secondary check: look up in Baileys in-memory contact store
+      if (username === participant.split('@')[0] && sock.contacts?.[participant]) {
+        const contactInfo = sock.contacts[participant]
+        username = contactInfo.name || contactInfo.verifiedName || contactInfo.notify || username
+      }
+    }
+
+    const cleanUsername = username.replace(/[^a-zA-Z0-9\s-_]/g, '').trim() || 'User'
+    console.log(`[STICKER-BUBBLE] Resolved username: "${username}" -> Sanitized: "${cleanUsername}" for participant JID: "${participant}"`)
+
+    const wrappedText = wrapText(quotedText, 24)
+    const linesCount = wrappedText.split('\n').length
+
+    // Dynamic layout sizing and centering
+    const bubbleHeight = 40 + (linesCount * 30) + 20
+    const bubbleY = Math.max(20, Math.floor((512 - bubbleHeight) / 2))
+    const usernameY = bubbleY + 20
+    const textY = bubbleY + 60
+
+    const tempTextFile = `./temp_bubble_${Date.now()}.txt`
+    const tempOutputFile = `./temp_bubble_sticker_${Date.now()}.webp`
+
+    try {
+      fs.writeFileSync(tempTextFile, wrappedText, 'utf-8')
+
+      // Render dark grey background box with cyan username and white message text
+      const ffmpegCmd = `ffmpeg -f lavfi -i color=c=black@0:s=512x512:d=1 -vf "drawbox=x=20:y=${bubbleY}:w=472:h=${bubbleHeight}:color=0x202C33:t=fill,drawtext=text='@${cleanUsername}':fontcolor=0x53bdeb:fontsize=28:x=40:y=${usernameY},drawtext=textfile='${tempTextFile}':fontcolor=white:fontsize=24:x=40:y=${textY}" -vframes 1 -y "${tempOutputFile}"`
+
+      exec(ffmpegCmd, async (err) => {
+        if (err) {
+          console.error('[STICKER-BUBBLE] ffmpeg error:', err)
+          await sock.sendMessage(jid, { text: '❌ Failed to generate chat bubble sticker.' })
+          cleanup()
+          return
+        }
+
+        try {
+          const webpBuffer = fs.readFileSync(tempOutputFile)
+          await sock.sendMessage(jid, { sticker: webpBuffer })
+        } catch (readErr) {
+          console.error('[STICKER-BUBBLE] Read error:', readErr)
+          await sock.sendMessage(jid, { text: '❌ Failed to read generated bubble sticker.' })
+        }
+        cleanup()
+      })
+
+    } catch (err) {
+      console.error('[STICKER-BUBBLE] error:', err.message)
+      await sock.sendMessage(jid, { text: '❌ Error: Could not render bubble sticker.' })
+      cleanup()
+    }
+
+    function cleanup() {
+      try { if (fs.existsSync(tempTextFile)) fs.unlinkSync(tempTextFile) } catch (e) {}
+      try { if (fs.existsSync(tempOutputFile)) fs.unlinkSync(tempOutputFile) } catch (e) {}
+    }
+    return
+  }
+
+  // Case 3: Text to sticker
+  if (args && args.length > 0) {
+    await sock.sendMessage(jid, { text: '⏳ Creating text sticker...' })
+
+    const textToRender = args.join(' ')
+    const wrappedText = wrapText(textToRender, 18)
+
+    const tempTextFile = `./temp_text_${Date.now()}.txt`
+    const tempOutputFile = `./temp_sticker_${Date.now()}.webp`
+
+    try {
+      fs.writeFileSync(tempTextFile, wrappedText, 'utf-8')
+
+      // Render white text with 3px black border, centered on a 512x512 transparent canvas
+      const ffmpegCmd = `ffmpeg -f lavfi -i color=c=black@0:s=512x512:d=1 -vf "drawtext=textfile='${tempTextFile}':fontcolor=white:fontsize=40:borderw=3:bordercolor=black:x=(w-text_w)/2:y=(h-text_h)/2" -vframes 1 -y "${tempOutputFile}"`
+
+      exec(ffmpegCmd, async (err) => {
+        if (err) {
+          console.error('[STICKER-TEXT] ffmpeg error:', err)
+          await sock.sendMessage(jid, { text: '❌ Failed to generate text sticker.' })
+          cleanup()
+          return
+        }
+
+        try {
+          const webpBuffer = fs.readFileSync(tempOutputFile)
+          await sock.sendMessage(jid, { sticker: webpBuffer })
+        } catch (readErr) {
+          console.error('[STICKER-TEXT] Read error:', readErr)
+          await sock.sendMessage(jid, { text: '❌ Failed to read generated sticker.' })
+        }
+        cleanup()
+      })
+
+    } catch (err) {
+      console.error('[STICKER-TEXT] error:', err.message)
+      await sock.sendMessage(jid, { text: '❌ Error: Could not render text sticker.' })
+      cleanup()
+    }
+
+    function cleanup() {
+      try { if (fs.existsSync(tempTextFile)) fs.unlinkSync(tempTextFile) } catch (e) {}
+      try { if (fs.existsSync(tempOutputFile)) fs.unlinkSync(tempOutputFile) } catch (e) {}
+    }
+    return
+  }
+
+  // Case 4: No args and no image quoted
+  await sock.sendMessage(jid, {
+    text: `🖼️ *Sticker Creator Usage:*
+
+• *Image to Sticker:* Reply to an image with *.sticker*
+• *Transparent Sticker:* Reply to an image with *.sticker edge* or *.sticker nobg* (removes background)
+• *Chat Bubble Sticker:* Reply to a text message with *.sticker*
+• *Text Sticker:* Type *.sticker <your text>*`
+  })
+},
+
+weather: async ({ sock, jid, args }) => {
+  if (!args.length) {
+    await sock.sendMessage(jid, { text: '❌ Usage: *.weather <city name>*' })
+    return
+  }
+
+  const city = args.join(' ')
+  await sock.sendMessage(jid, { text: `🔍 Getting weather for *${city}*...` })
+
+  try {
+    const res = await axios.get(`https://wttr.in/${encodeURIComponent(city)}?format=j1`, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      timeout: 15000
+    })
+
+    const current = res.data.current_condition?.[0]
+    const area = res.data.nearest_area?.[0]
+
+    if (!current || !area) {
+      await sock.sendMessage(jid, { text: '😔 City not found or weather service unavailable.' })
+      return
+    }
+
+    const temp = current.temp_C
+    const feelsLike = current.FeelsLikeC
+    const humidity = current.humidity
+    const desc = current.weatherDesc?.[0]?.value || 'Unknown'
+    const windSpeed = current.windspeedKmph
+    const cityName = area.areaName?.[0]?.value || city
+    const country = area.country?.[0]?.value || ''
+
+    let emoji = '🌤️'
+    const lowerDesc = desc.toLowerCase()
+    if (lowerDesc.includes('sun') || lowerDesc.includes('clear')) emoji = '☀️'
+    else if (lowerDesc.includes('cloud') || lowerDesc.includes('overcast')) emoji = '☁️'
+    else if (lowerDesc.includes('rain') || lowerDesc.includes('drizzle')) emoji = '🌧️'
+    else if (lowerDesc.includes('snow') || lowerDesc.includes('freeze')) emoji = '❄️'
+    else if (lowerDesc.includes('thunder') || lowerDesc.includes('storm')) emoji = '⚡'
+    else if (lowerDesc.includes('fog') || lowerDesc.includes('mist')) emoji = '🌫️'
+
+    const weatherMsg = `🌦️ *Weather in ${cityName}, ${country}*
+
+🌡️ *Temperature:* ${temp}°C
+🤔 *Feels Like:* ${feelsLike}°C
+${emoji} *Condition:* ${desc}
+💧 *Humidity:* ${humidity}%
+💨 *Wind Speed:* ${windSpeed} km/h`
+
+    await sock.sendMessage(jid, { text: weatherMsg })
+
+  } catch (err) {
+    console.error('[WEATHER] error:', err.message)
+    await sock.sendMessage(jid, { text: '⚠️ Weather service is currently offline. Please try again later.' })
+  }
+},
+
 
   menu: async ({ sock, jid }) => {
     await sock.sendMessage(jid, {
       text:
-`🤖 *Yaadobot v2.0*
+`🤖 *Yaadobot v2.3*
 _Created by @yaad_
 
 ━━━━━━━━━━━━
@@ -572,6 +970,7 @@ _Created by @yaad_
 .math       
 .guess      
 .numguess   
+.roll       :: 🎲 Free Dice Roll
 .timebomb   :: 💣 60s Fuse!
 .unscramble 
 .iqtest     
@@ -592,6 +991,9 @@ _Created by @yaad_
 .pic <text>   :: Image search
 .play <song>  :: Download MP3
 .plays <song> :: Download Voice Note
+.video <song> :: Download Video MP4
+.sticker      :: Convert Image to Sticker
+.weather <city> :: Get Weather Status
 .lyrics <song>:: Get Lyrics
 .explain <topic>
 .explainlikeim5 <topic>
@@ -646,10 +1048,6 @@ _Guide to the galaxy... or just this bot._
 • *Commands*: Start with a dot (e.g., .menu, .xp)
 • *Arguments*: Some need info (e.g., .pic cat)
 • *Replies*: Some need you to reply to a message (.roast, .judge)
-• *Auto-Trivia*:
-  - Random questions pop up automatically.
-  - Reply fast for XP.
-  - *Mystery Box*: Reply "steal" first!
 
 ━━━━━━━━━━━━
 🧠 *TIPS & TRICKS*

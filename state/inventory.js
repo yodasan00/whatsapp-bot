@@ -1,7 +1,7 @@
 const fs = require('fs')
-const path = require('path')
+const paths = require('../utils/paths')
 
-const FILE = path.join(__dirname, 'inventory.json')
+const FILE = paths.getInventoryPath()
 
 let inventory = {}
 
@@ -14,8 +14,15 @@ if (fs.existsSync(FILE)) {
     }
 }
 
+// Debounced async save — batches rapid writes into one disk op
+let saveTimer = null
 function save() {
-    fs.writeFileSync(FILE, JSON.stringify(inventory, null, 2))
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => {
+    fs.writeFile(FILE, JSON.stringify(inventory, null, 2), err => {
+      if (err) console.error('Failed to save inventory.json:', err)
+    })
+  }, 500)
 }
 
 function key(jid, userJid) {

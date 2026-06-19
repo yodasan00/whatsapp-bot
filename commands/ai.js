@@ -31,6 +31,11 @@ function parseAIResponse(text) {
 
 async function handleAICommand({ command, args, sock, jid, msg }) {
   switch (command) {
+    case 'hello': {
+      await sock.sendMessage(jid, { text: '👋 Hello!' })
+      return true
+    }
+
     case 'dadjoke': {
       const reply = await aiCommand(
         jid,
@@ -115,7 +120,7 @@ async function handleAICommand({ command, args, sock, jid, msg }) {
       const topic = args.join(' ')
       const reply = await aiCommand(
         jid,
-        `Explain "${topic}" like I am 5 years old, using humor.`
+        `Explain "${topic}" like I am 5 years old, using humor. Keep the explanation short, simple, and under 100 words.`
       )
 
       if (reply) await sock.sendMessage(jid, { text: reply })
@@ -136,7 +141,7 @@ async function handleAICommand({ command, args, sock, jid, msg }) {
       
       const reply = await aiCommand(
         jid,
-        `Explain "${topic}" in depth and detail. Break it down into clear sections if needed.`
+        `Explain "${topic}" in depth. Break it down into clear sections or key bullet points, but keep it concise and under 180 words maximum.`
       )
 
       if (reply) await sock.sendMessage(jid, { text: reply })

@@ -1,6 +1,7 @@
 const params = new URLSearchParams(window.location.search);
 const userJid = params.get('user');
 const context = params.get('context') || userJid;
+const token = params.get('token') || '';
 
 const API_BASE = ''; // Relative path since served from same origin
 
@@ -26,9 +27,14 @@ async function init() {
 
 async function fetchUserData() {
     try {
-        const res = await fetch(`${API_BASE}/api/user?jid=${userJid}&context=${context}`);
+        const res = await fetch(`${API_BASE}/api/user?jid=${userJid}&context=${context}&token=${token}`);
         
         const data = await res.json();
+        
+        if (data.error) {
+            showToast(data.error, true);
+            return;
+        }
         
         userJidEl.textContent = data.jid.split('@')[0];
         userXpEl.textContent = checkNumber(data.xp);
@@ -158,7 +164,7 @@ async function buyItem(itemId) {
         const res = await fetch(`${API_BASE}/api/buy`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ jid: userJid, context, itemId })
+            body: JSON.stringify({ jid: userJid, context, itemId, token })
         });
         
         const data = await res.json();
@@ -183,7 +189,7 @@ async function sellItem(itemId) {
         const res = await fetch(`${API_BASE}/api/sell`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ jid: userJid, context, itemId })
+            body: JSON.stringify({ jid: userJid, context, itemId, token })
         });
         
         const data = await res.json();

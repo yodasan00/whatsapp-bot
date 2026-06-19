@@ -1,34 +1,31 @@
 FROM node:20-slim
 
-# Install dependencies for canvas/puppeteer if needed in future (optional but good for bots)
+# Install system dependencies including python3, pip, venv, and ffmpeg
 RUN apt-get update && apt-get install -y \
-    chromium \
-    libnss3 \
-    libatk-bridge2.0-0 \
-    libx11-xcb1 \
-    libxcomposite1 \
-    libxcursor1 \
-    libxdamage1 \
-    libxi6 \
-    libxtst6 \
-    libnss3 \
-    cups-daemon \
-    libxss1 \
-    libxrandr2 \
-    libasound2 \
-    libpangocairo-1.0-0 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libgtk-3-0 \
+    python3 \
+    python3-pip \
+    python3-venv \
+    ffmpeg \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
 
 COPY package*.json ./
-
 RUN npm install
 
+# Install Deno (for signature decryption)
+RUN curl -fsSL https://deno.land/x/install/install.sh | sh
+ENV DENO_INSTALL="/root/.deno"
+ENV PATH="$DENO_INSTALL/bin:$PATH"
+
 COPY . .
+
+# Setup Python environment inside the container
+RUN python3 -m venv music-service/.venv && \
+    . music-service/.venv/bin/activate && \
+    pip install --upgrade pip && \
+    pip install -r music-service/requirements.txt
 
 # Expose the web shop port
 EXPOSE 3000

@@ -5,13 +5,15 @@ async function enqueue(jid, task) {
   if (!queues.has(jid)) queues.set(jid, [])
   const queue = queues.get(jid)
 
+  const isAlreadyPlaying = playing.has(jid)
   queue.push(task)
 
-  if (!playing.has(jid)) {
+  if (!isAlreadyPlaying) {
     processNext(jid)
+    return { queued: false, position: 0 }
   }
 
-  return queue.length
+  return { queued: true, position: queue.length }
 }
 
 async function processNext(jid) {

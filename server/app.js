@@ -5,6 +5,7 @@ const path = require('path')
 const { getInventory, addItem, removeItem } = require('../state/inventory')
 const { getXP, addXP } = require('../state/xp')
 const { shopItems, getItem } = require('../state/shop')
+const { verifyToken } = require('../state/tokens')
 
 const app = express()
 const PORT = process.env.PORT || 3000
@@ -15,8 +16,9 @@ app.use(express.static(path.join(__dirname, 'public')))
 
 // API: Get User Data
 app.get('/api/user', (req, res) => {
-    const { jid, context } = req.query
-    if (!jid) return res.status(400).json({ error: 'Missing jid' }) 
+    const { jid, context, token } = req.query
+    if (!jid) return res.status(400).json({ error: 'Missing jid' })
+    if (!verifyToken(jid, token)) return res.status(401).json({ error: 'Unauthorized. Please request a new .shop link.' })
 
     const targetContext = context || jid
     
@@ -33,9 +35,10 @@ app.get('/api/shop', (req, res) => {
 
 // API: Buy Item
 app.post('/api/buy', (req, res) => {
-    const { jid, context, itemId } = req.body
+    const { jid, context, itemId, token } = req.body
     
     if (!jid || !itemId) return res.status(400).json({ error: 'Missing data' })
+    if (!verifyToken(jid, token)) return res.status(401).json({ error: 'Unauthorized. Please request a new .shop link.' })
 
     const targetContext = context || jid
     const item = getItem(itemId)
@@ -58,9 +61,10 @@ app.post('/api/buy', (req, res) => {
 
 // API: Sell Item
 app.post('/api/sell', (req, res) => {
-    const { jid, context, itemId, amount = 1 } = req.body
+    const { jid, context, itemId, amount = 1, token } = req.body
     
     if (!jid || !itemId) return res.status(400).json({ error: 'Missing data' })
+    if (!verifyToken(jid, token)) return res.status(401).json({ error: 'Unauthorized. Please request a new .shop link.' })
     
     const targetContext = context || jid
     const item = getItem(itemId)
