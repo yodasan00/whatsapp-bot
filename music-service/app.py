@@ -3,6 +3,7 @@ import time
 import logging
 import io
 import urllib.request
+import urllib.error
 import json
 from flask import Flask, request, jsonify, send_file
 import yt_dlp
