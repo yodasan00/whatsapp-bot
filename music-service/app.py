@@ -146,6 +146,8 @@ def download():
     if cookies_path:
         ydl_opts['cookiefile'] = cookies_path
         logger.info(f"Loaded yt-dlp cookies from: {cookies_path}")
+        if 'extractor_args' in ydl_opts and 'youtube' in ydl_opts['extractor_args']:
+            ydl_opts['extractor_args']['youtube'].pop('player_client', None)
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -237,6 +239,8 @@ def download_video():
     if cookies_path:
         ydl_opts['cookiefile'] = cookies_path
         logger.info(f"Loaded yt-dlp cookies from: {cookies_path}")
+        if 'extractor_args' in ydl_opts and 'youtube' in ydl_opts['extractor_args']:
+            ydl_opts['extractor_args']['youtube'].pop('player_client', None)
 
     # Helper function to transcode using FFmpeg
     def transcode(in_path, out_path):
