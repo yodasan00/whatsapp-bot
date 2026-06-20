@@ -81,7 +81,11 @@ def try_cobalt_fallback(url, download_mode="audio", audio_format="mp3"):
                         stream_req = urllib.request.Request(stream_url, headers={"User-Agent": headers["User-Agent"]})
                         with urllib.request.urlopen(stream_req, timeout=45) as stream_response:
                             if stream_response.status == 200:
-                                return stream_response.read()
+                                res_bytes = stream_response.read()
+                                if res_bytes:
+                                    return res_bytes
+                                logger.warning(f"[COBALT] Instance {api_url} returned empty stream data")
+                                continue
             logger.warning(f"[COBALT] Instance {api_url} returned non-200 or no URL")
         except urllib.error.HTTPError as he:
             try:
