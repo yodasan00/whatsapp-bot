@@ -8,3 +8,5 @@ music-service/temp/
 *.log
 *player-script.js
 state/*.json
+music-service/.cache/
+

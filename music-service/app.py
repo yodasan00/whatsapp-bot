@@ -127,6 +127,9 @@ def download():
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': output_tmpl,
+        'username': 'oauth',
+        'password': '',
+        'cachedir': os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache"),
         'extractor_args': {
             'youtube': {
                 'player_client': ['ios', 'android']
@@ -137,8 +140,8 @@ def download():
             'preferredcodec': codec,
             'preferredquality': '192',
         }],
-        'quiet': True,
-        'no_warnings': True,
+        'quiet': False,
+        'no_warnings': False,
     }
 
     cookies_path = get_cookies_path()
@@ -222,13 +225,16 @@ def download_video():
     ydl_opts = {
         'format': '22/18/best[ext=mp4]/best',
         'outtmpl': output_tmpl,
+        'username': 'oauth',
+        'password': '',
+        'cachedir': os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache"),
         'extractor_args': {
             'youtube': {
                 'player_client': ['ios', 'android']
             }
         },
-        'quiet': True,
-        'no_warnings': True,
+        'quiet': False,
+        'no_warnings': False,
     }
 
     cookies_path = get_cookies_path()

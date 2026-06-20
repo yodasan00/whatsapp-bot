@@ -57,25 +57,5 @@ npm start
 
 ---
 
-## 🐋 Docker Setup
-
-We containerized this bot so you can deploy it in 20 seconds.
-
-1. **Build Image:**
-   ```bash
-   docker build -t whatsapp-bot .
-   ```
-2. **Spin Up Container (Crucial: map the `auth` volume so you don't keep getting logged out on every restart!):**
-   ```bash
-   docker run -d \
-     -p 3000:3000 \
-     -v $(pwd)/auth:/usr/src/app/auth \
-     --env-file .env \
-     --name my-whatsapp-bot \
-     whatsapp-bot
-   ```
-
----
-
 ## 📜 License
 Licensed under the ISC License. Check out [DEPLOYMENT.md](file:///d:/Whatapp_bot/whatsapp-bot/DEPLOYMENT.md) for full AWS EC2 production hosting steps.

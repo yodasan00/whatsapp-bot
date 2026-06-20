@@ -64,30 +64,12 @@ To push new updates to the bot smoothly without losing your WhatsApp login sessi
 The script will pull the latest code, install Node.js and Python packages, update Deno, and restart the PM2 bot instance cleanly.
 
 
-## Option 2: Docker (Professional)
-Better for stability and scaling.
-
-1.  **Build Image**:
-    ```bash
-    docker build -t whatsapp-bot .
-    ```
-
-2.  **Run Container**:
-    ```bash
-    docker run -d \
-      -p 3000:3000 \
-      -v $(pwd)/auth:/usr/src/app/auth \  # Persist login session
-      --env-file .env \
-      --name my-bot \
-      whatsapp-bot
-    ```
-
 ## ⚠️ Important: Persistent Session
 *   **The `auth` folder contains your login session.**
-*   If you delete this folder, you will have to scan the QR code again.
-*   In Docker, we use `-v $(pwd)/auth:/usr/src/app/auth` to save this folder to your host machine so it survives restarts.
+*   If you delete this folder, you will have to scan the QR code again. Keep this folder safe on your server.
 
 ## 🌐 Web Shop
 *   Your shop will be running on port `3000`.
 *   Ensure your AWS Security Group **allows Inbound traffic on Port 3000**.
 *   Update your `.env` file: `WEB_URL=http://<your-public-ip>:3000` (or your domain).
+

@@ -1,8 +1,0 @@
-node_modules
-npm-debug.log
-auth
-.env
-.git
-.gitignore
-task.md
-implementation_plan.md
