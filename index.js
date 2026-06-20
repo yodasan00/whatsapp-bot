@@ -308,6 +308,77 @@ async function startBot() {
   })
 }
 
+// --- Stability Enhancements ---
+
+// 1. Uncaught exception / rejection handlers (Email Alerts)
+process.on('uncaughtException', (err) => {
+  console.error('🔥 Global Uncaught Exception:', err)
+  try {
+    const { sendErrorEmail } = require('./utils/email')
+    sendErrorEmail('Global Uncaught Exception (Bot Crash)', err)
+      .catch(console.error)
+      .finally(() => {
+        // Allow time for email transmission before exiting (PM2 will auto-restart)
+        setTimeout(() => process.exit(1), 3000)
+      })
+  } catch (e) {
+    console.error('Failed to send error email on uncaughtException:', e)
+    process.exit(1)
+  }
+})
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('🔥 Global Unhandled Rejection at:', promise, 'reason:', reason)
+  try {
+    const { sendErrorEmail } = require('./utils/email')
+    const err = reason instanceof Error ? reason : new Error(String(reason))
+    sendErrorEmail('Global Unhandled Rejection', err).catch(console.error)
+  } catch (e) {
+    console.error('Failed to send error email on unhandledRejection:', e)
+  }
+})
+
+// 2. Automated temporary file cleanup (prevents disk space saturation)
+function cleanTempDirectories() {
+  const fs = require('fs')
+  const path = require('path')
+  const dirs = [
+    path.join(__dirname, 'temp'),
+    path.join(__dirname, 'music-service', 'temp')
+  ]
+  
+  console.log('[CLEANUP] Checking temporary directories for old files...')
+  dirs.forEach(dir => {
+    if (!fs.existsSync(dir)) return
+    
+    fs.readdir(dir, (err, files) => {
+      if (err) return console.error(`[CLEANUP] Failed to read directory ${dir}:`, err)
+      const now = Date.now()
+      
+      files.forEach(file => {
+        const filePath = path.join(dir, file)
+        fs.stat(filePath, (statErr, stats) => {
+          if (statErr) return
+          // Delete files older than 1 hour (3600000 ms)
+          if (now - stats.mtimeMs > 3600 * 1000) {
+            fs.unlink(filePath, unlinkErr => {
+              if (unlinkErr) {
+                console.error(`[CLEANUP] Failed to delete: ${filePath}`, unlinkErr.message)
+              } else {
+                console.log(`[CLEANUP] Deleted old temp file: ${filePath}`)
+              }
+            })
+          }
+        })
+      })
+    })
+  })
+}
+
+// Run cleanup on startup and set hourly interval
+cleanTempDirectories()
+setInterval(cleanTempDirectories, 60 * 60 * 1000)
+
 const { spawn } = require('child_process')
 const path = require('path')
 

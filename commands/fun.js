@@ -73,14 +73,25 @@ async function processAudioRequest({ sock, jid, args, ptt }) {
 
     } catch (err) {
       console.error(`[${commandName.toUpperCase()}] error:`, err.message)
+      let flaskErrDetails = ''
       if (err.response && err.response.data) {
         try {
           const errStr = Buffer.from(err.response.data).toString('utf-8')
           console.error(`[${commandName.toUpperCase()}] Flask error response:`, errStr)
+          flaskErrDetails = `\n\nFlask Service Response:\n${errStr}`
         } catch (parseErr) {
           // ignore
         }
       }
+      
+      // Send email alert for system errors (exclude standard user-input errors)
+      if (err.message !== 'Song not found' && !err.message.includes('too long')) {
+        const { sendErrorEmail } = require('../utils/email')
+        const decoratedError = new Error(err.message + flaskErrDetails)
+        decoratedError.stack = err.stack
+        sendErrorEmail(`Media Download (${commandName.toUpperCase()}) - Query: "${query}"`, decoratedError).catch(console.error)
+      }
+
       let msg = `⚠️ Failed to play music.`
       if (err.message === 'Song not found') {
         msg = '❌ Song not found. Try a different name.'
@@ -594,14 +605,25 @@ video: async ({ sock, jid, args }) => {
 
   } catch (err) {
     console.error(`[VIDEO] error:`, err.message)
+    let flaskErrDetails = ''
     if (err.response && err.response.data) {
       try {
         const errStr = Buffer.from(err.response.data).toString('utf-8')
         console.error(`[VIDEO] Flask error response:`, errStr)
+        flaskErrDetails = `\n\nFlask Service Response:\n${errStr}`
       } catch (parseErr) {
         // ignore
       }
     }
+
+    // Send email alert for system errors
+    if (!err.message.includes('too long')) {
+      const { sendErrorEmail } = require('../utils/email')
+      const decoratedError = new Error(err.message + flaskErrDetails)
+      decoratedError.stack = err.stack
+      sendErrorEmail(`Video Download - Query: "${query}"`, decoratedError).catch(console.error)
+    }
+
     await sock.sendMessage(jid, { 
       text: `❌ Error downloading video: ${err.message || 'Server timeout or connection failed.'}` 
     })
