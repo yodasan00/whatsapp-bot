@@ -128,6 +128,7 @@ def download():
         'format': 'bestaudio/best',
         'outtmpl': output_tmpl,
         'cachedir': os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache"),
+        'remote_components': ['ejs:github'],
         'extractor_args': {
             'youtube': {
                 'player_client': ['ios', 'android']
@@ -226,6 +227,7 @@ def download_video():
         'format': '22/18/best[ext=mp4]/best',
         'outtmpl': output_tmpl,
         'cachedir': os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache"),
+        'remote_components': ['ejs:github'],
         'extractor_args': {
             'youtube': {
                 'player_client': ['ios', 'android']
