@@ -152,6 +152,7 @@ async function startBot() {
     }
   })
 
+  console.log('GEMINI KEY EXISTS:', !!process.env.GEMINI_API_KEY)
   console.log('OPENROUTER KEY EXISTS:', !!process.env.OPENROUTER_API_KEY)
 
   /* ---------- MESSAGE ENTRY ---------- */

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yaadobot — YouTube Cookie Manager</title>
+    <link rel="stylesheet" href="cookies.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="glow-bg"></div>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="brand">
+                <div class="logo-icon">🍪</div>
+                <div>
+                    <h1 class="logo-title">Cookie Manager</h1>
+                    <p class="logo-subtitle">YouTube Music Service Authentication</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <div class="badge admin-badge" id="adminBadge">
+                    <span class="badge-dot"></span>
+                    <span id="userDisplay">Verifying...</span>
+                </div>
+                <a href="/" class="btn btn-secondary back-btn">💎 Shop Dashboard</a>
+            </div>
+        </header>
+
+        <main class="dashboard-grid">
+            <!-- Left Column: Status & Testing -->
+            <div class="col-left">
+                <!-- Status Card -->
+                <section class="card status-card">
+                    <div class="card-header">
+                        <h2>📊 Cookie Health</h2>
+                        <span class="status-indicator loading" id="healthIndicator">Checking...</span>
+                    </div>
+
+                    <div class="metrics-grid">
+                        <div class="metric-box">
+                            <span class="metric-label">Status</span>
+                            <span class="metric-value" id="statusText">--</span>
+                        </div>
+                        <div class="metric-box">
+                            <span class="metric-label">YouTube Cookies</span>
+                            <span class="metric-value highlight" id="ytCookiesCount">--</span>
+                        </div>
+                        <div class="metric-box">
+                            <span class="metric-label">Total Entries</span>
+                            <span class="metric-value" id="totalCookiesCount">--</span>
+                        </div>
+                        <div class="metric-box">
+                            <span class="metric-label">Last Updated</span>
+                            <span class="metric-value small" id="lastUpdated">--</span>
+                        </div>
+                    </div>
+
+                    <div id="testResultBanner" class="banner hidden"></div>
+
+                    <button id="btnTestCookies" class="btn btn-outline w-full">
+                        <span class="btn-icon">⚡</span>
+                        <span class="btn-text">Test YouTube Connection</span>
+                    </button>
+                </section>
+
+                <!-- Instructions Card -->
+                <section class="card guide-card">
+                    <h2>📖 How to Refresh Cookies</h2>
+                    <ol class="guide-steps">
+                        <li>
+                            <strong>Install Extension:</strong> Use 
+                            <a href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank" rel="noopener">Get cookies.txt LOCALLY</a> 
+                            (or similar) on your desktop browser.
+                        </li>
+                        <li>
+                            <strong>Open YouTube:</strong> Go to <a href="https://youtube.com" target="_blank" rel="noopener">youtube.com</a> while signed into an active/throwaway Google account.
+                        </li>
+                        <li>
+                            <strong>Export & Upload:</strong> Click the extension icon, export `cookies.txt`, and drop it into the box on the right.
+                        </li>
+                    </ol>
+                    <div class="tip-box">
+                        💡 <em>Tip: Using a secondary/throwaway Google account prevents accidental session logouts.</em>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Right Column: Upload & Update -->
+            <div class="col-right">
+                <section class="card upload-card">
+                    <div class="card-header">
+                        <h2>🔄 Update Cookies</h2>
+                        <div class="tabs">
+                            <button class="tab-btn active" data-tab="upload">📁 File Upload</button>
+                            <button class="tab-btn" data-tab="paste">📝 Paste Text</button>
+                        </div>
+                    </div>
+
+                    <!-- Tab 1: File Drop -->
+                    <div id="tabUpload" class="tab-content active">
+                        <div class="dropzone" id="dropZone">
+                            <input type="file" id="fileInput" accept=".txt" class="file-input">
+                            <div class="dropzone-content">
+                                <div class="dropzone-icon">📥</div>
+                                <p class="dropzone-title">Drag & drop your <code>cookies.txt</code> here</p>
+                                <p class="dropzone-subtitle">or click to browse files from your device</p>
+                                <span class="dropzone-badge">Netscape Format (.txt)</span>
+                            </div>
+                        </div>
+                        <div id="filePreview" class="file-preview hidden">
+                            <span class="file-name" id="previewFileName"></span>
+                            <span class="file-size" id="previewFileSize"></span>
+                            <button class="btn-remove" id="btnRemoveFile">✕</button>
+                        </div>
+                    </div>
+
+                    <!-- Tab 2: Paste Raw -->
+                    <div id="tabPaste" class="tab-content">
+                        <textarea id="cookiesTextarea" class="code-textarea" placeholder="# Netscape HTTP Cookie File&#10;.youtube.com&#9;TRUE&#9;/&#9;TRUE&#9;1740000000&#9;VISITOR_INFO1_LIVE&#9;..."></textarea>
+                    </div>
+
+                    <!-- Format validation warning/info -->
+                    <div id="validationBar" class="validation-bar hidden">
+                        <span id="validationIcon">ℹ️</span>
+                        <span id="validationMessage">Detected Netscape cookie syntax.</span>
+                    </div>
+
+                    <button id="btnSaveCookies" class="btn btn-primary w-full" disabled>
+                        <span class="btn-icon">💾</span>
+                        <span class="btn-text">Save & Verify Cookies</span>
+                    </button>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Floating Toast Notification -->
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="cookies.js"></script>
+</body>
+</html>

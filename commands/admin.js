@@ -3,6 +3,8 @@ const { mutedUsers } = require('../state/mutedUsers')
 const { getGroupMetadata, isUserAdmin, getAdmins } = require('../utils/group')
 
 const { setBotEnabled, setCustomMessage } = require('../state/globalSettings')
+const { generateToken } = require('../state/tokens')
+const { isOwner } = require('../utils/owner')
 
 // ✅ ONLY these require admin privileges
 const ADMIN_COMMANDS = [
@@ -21,16 +23,15 @@ const ADMIN_COMMANDS = [
 const OWNER_COMMANDS = [
     'bot',
     'botmsg',
-    'send'
+    'send',
+    'cookies',
+    'cookie'
 ]
 
 async function handleAdminCommand({ command, sock, jid, msg, sender }) {
   // 1️⃣ Check Owner Commands First
   if (OWNER_COMMANDS.includes(command)) {
-      const ownerNumbers = (process.env.OWNER_NUMBER || '').split(',')
-      const isOwner = ownerNumbers.some(n => n && sender.includes(n.trim()))
-
-      if (!isOwner) {
+      if (!isOwner(sender)) {
           return false 
       }
 
@@ -99,6 +100,22 @@ async function handleAdminCommand({ command, sock, jid, msg, sender }) {
                   await sock.sendMessage(jid, { text: `✅ Sent to ${sentCount} groups.` })
               } catch (e) {
                   await sock.sendMessage(jid, { text: '❌ Failed to fetch groups.' })
+              }
+              return true
+          }
+
+          case 'cookies':
+          case 'cookie': {
+              const baseUrl = process.env.WEB_URL || 'http://localhost:3000'
+              const token = generateToken(sender)
+              const link = `${baseUrl}/cookies?user=${encodeURIComponent(sender)}&token=${token}`
+
+              await sock.sendMessage(sender, {
+                  text: `🍪 *YouTube Cookie Portal:*\n${link}\n\n⏳ Link expires in 15 minutes.\n_Use this link to upload fresh cookies or test cookie health._`
+              })
+
+              if (jid.endsWith('@g.us')) {
+                  await sock.sendMessage(jid, { text: '📩 Sent cookie management link to your DM!' })
               }
               return true
           }

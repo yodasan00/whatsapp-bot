@@ -15,6 +15,8 @@ const { addItem, getInventory } = require('../state/inventory')
 const { isOnCooldown } = require('../state/cooldown')
 const { enqueue } = require('../handlers/playQueue')
 
+let lastCookieAlertTime = 0
+
 async function processAudioRequest({ sock, jid, args, ptt }) {
   const commandName = ptt ? 'plays' : 'play';
   if (!args.length) {
@@ -90,6 +92,29 @@ async function processAudioRequest({ sock, jid, args, ptt }) {
         const decoratedError = new Error(err.message + flaskErrDetails)
         decoratedError.stack = err.stack
         sendErrorEmail(`Media Download (${commandName.toUpperCase()}) - Query: "${query}"`, decoratedError).catch(console.error)
+      }
+
+      // Proactive owner alert if failure is due to cookie expiration / bot block
+      const isCookieIssue = /Sign in to confirm you're not a bot|cookies|bot detection|HTTP Error 429|Sign in/i.test(err.message + flaskErrDetails)
+      if (isCookieIssue && Date.now() - lastCookieAlertTime > 30 * 60 * 1000) {
+        lastCookieAlertTime = Date.now()
+        const { generateToken } = require('../state/tokens')
+        const ownerNumbers = (process.env.OWNER_NUMBER || '').split(',').map(n => n.trim()).filter(Boolean)
+        const baseUrl = process.env.WEB_URL || 'http://localhost:3000'
+        for (const ownerNum of ownerNumbers) {
+          const ownerJid = ownerNum.includes('@') ? ownerNum : `${ownerNum}@s.whatsapp.net`
+          const token = generateToken(ownerJid)
+          const cookieUrl = `${baseUrl}/cookies?user=${encodeURIComponent(ownerJid)}&token=${token}`
+          sock.sendMessage(ownerJid, {
+            text: `🚨 *Alert: YouTube Cookies Flagged!*
+Audio downloads are currently failing due to YouTube bot verification.
+
+🍪 *Click to upload fresh cookies:*
+${cookieUrl}
+
+⏳ _Link valid for 15 minutes._`
+          }).catch(console.error)
+        }
       }
 
       let msg = `⚠️ Failed to play music.`

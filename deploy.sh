@@ -1,9 +1,8 @@
 #!/bin/bash
-
 # Exit immediately if a command exits with a non-zero status
 set -e
 
-echo "🚀 Starting WhatsApp Bot Deployment..."
+echo "🚀 Starting WhatsApp Bot Update Deployment..."
 
 # 1. Pull latest changes
 echo "📥 Pulling latest code from git..."
@@ -20,36 +19,34 @@ if [ ! -d "music-service/.venv" ]; then
     python3 -m venv music-service/.venv
 fi
 
-# Activate virtual environment
 source music-service/.venv/bin/activate
-
-# Install requirements
 pip install --upgrade pip
 pip install -r music-service/requirements.txt
-
-# Deactivate virtual env
 deactivate
 
 # 4. Ensure Deno is installed (for yt-dlp signature decryption)
 if ! command -v deno &> /dev/null; then
     echo "🦕 Installing Deno..."
     curl -fsSL https://deno.land/x/install/install.sh | sh
-    # Add Deno to local path if not present
     export DENO_INSTALL="$HOME/.deno"
     export PATH="$DENO_INSTALL/bin:$PATH"
 fi
 
-# 5. Restart PM2 Process
-echo "💀 Killing any orphaned python microservice processes on port 5005..."
-fuser -k 5005/tcp || true
+# 5. Clean up any orphaned microservice process on port 5005
+echo "💀 Freeing microservice port 5005..."
+fuser -k 5005/tcp 2>/dev/null || true
 
-echo "🔄 Restarting bot via PM2..."
-if pm2 list | grep -q "bot"; then
-    pm2 restart bot
+# 6. Restart via PM2
+echo "🔄 Reloading PM2 process..."
+if pm2 list | grep -q "yaadobot"; then
+    pm2 restart ecosystem.config.js
+elif pm2 list | grep -q "bot"; then
+    pm2 delete bot || true
+    pm2 start ecosystem.config.js
 else
-    pm2 start index.js --name "bot"
+    pm2 start ecosystem.config.js
 fi
 
 pm2 save
 
-echo "✅ Deployment successful! Bot is up and running."
+echo "✅ Deployment successful! Yaadobot is up and running."

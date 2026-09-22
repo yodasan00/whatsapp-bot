@@ -102,6 +102,42 @@ def try_cobalt_fallback(url, download_mode="audio", audio_format="mp3"):
 def health():
     return jsonify({"status": "healthy"}), 200
 
+@app.route('/test_cookies', methods=['GET', 'POST'])
+def test_cookies():
+    cookies_path = get_cookies_path()
+    if not cookies_path or not os.path.exists(cookies_path):
+        return jsonify({
+            "valid": False,
+            "error": "No cookies.txt file found on server. Please upload one."
+        }), 404
+
+    try:
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': True,
+            'cookiefile': cookies_path,
+            'remote_components': ['ejs:github'],
+            'socket_timeout': 10
+        }
+        test_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(test_url, download=False)
+            title = info.get('title', 'Unknown')
+            return jsonify({
+                "valid": True,
+                "message": f"Cookies are valid! Successfully verified with YouTube: '{title}'",
+                "videoTitle": title,
+                "cookiesPath": cookies_path
+            }), 200
+    except Exception as e:
+        err_msg = str(e)
+        logger.error(f"[TEST_COOKIES] Verification failed: {err_msg}")
+        return jsonify({
+            "valid": False,
+            "error": err_msg
+        }), 400
+
 @app.errorhandler(Exception)
 def handle_exception(e):
     import traceback
