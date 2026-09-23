@@ -9,4 +9,5 @@ music-service/temp/
 *player-script.js
 state/*.json
 music-service/.cache/
-
+__pycache__/
+*.pyc

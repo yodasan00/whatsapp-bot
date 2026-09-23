@@ -112,15 +112,23 @@ def test_cookies():
         }), 404
 
     try:
+        cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache")
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
             'extract_flat': True,
+            'skip_download': True,
             'cookiefile': cookies_path,
-            'remote_components': ['ejs:github'],
-            'socket_timeout': 10
+            'cachedir': cache_dir,
+            'socket_timeout': 15,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['ios', 'android', 'web']
+                }
+            }
         }
-        test_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        # Lightweight test video (Me at the zoo - smallest YouTube video metadata)
+        test_url = "https://www.youtube.com/watch?v=jNQXAC9IVRw"
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(test_url, download=False)
             title = info.get('title', 'Unknown')

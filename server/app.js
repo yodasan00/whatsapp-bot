@@ -144,7 +144,7 @@ app.post('/api/cookies/test', async (req, res) => {
     }
 
     try {
-        const response = await axios.get('http://127.0.0.1:5005/test_cookies', { timeout: 15000 })
+        const response = await axios.get('http://127.0.0.1:5005/test_cookies', { timeout: 45000 })
         res.json(response.data)
     } catch (err) {
         const errMsg = err.response?.data?.error || err.message
@@ -190,7 +190,7 @@ app.post('/api/cookies/update', async (req, res) => {
         // Auto-verify with Python service
         let verification = { valid: null }
         try {
-            const testResp = await axios.get('http://127.0.0.1:5005/test_cookies', { timeout: 15000 })
+            const testResp = await axios.get('http://127.0.0.1:5005/test_cookies', { timeout: 45000 })
             verification = testResp.data
         } catch (testErr) {
             verification = {

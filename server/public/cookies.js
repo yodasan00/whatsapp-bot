@@ -207,6 +207,15 @@ async function runCookieVerification() {
 
         const data = await res.json()
 
+        if (res.status === 401 || res.status === 403 || data.error?.toLowerCase().includes('unauthorized')) {
+            testResultBanner.className = 'banner error'
+            testResultBanner.textContent = `🔒 Link Expired: Please type .cookies on WhatsApp to get a fresh 2-hour link.`
+            healthIndicator.className = 'status-indicator error'
+            healthIndicator.textContent = 'Session Expired'
+            showToast('Session expired. Send .cookies on WhatsApp for a new link', 'error')
+            return
+        }
+
         if (res.ok && data.valid) {
             testResultBanner.className = 'banner success'
             testResultBanner.textContent = `✅ YouTube connection passed! Verified with video: "${data.videoTitle || 'Active'}"`
@@ -215,7 +224,7 @@ async function runCookieVerification() {
             showToast('Cookies tested successfully!', 'success')
         } else {
             testResultBanner.className = 'banner error'
-            testResultBanner.textContent = `❌ YouTube blocked this session: ${data.error || 'Cookies expired or flagged'}`
+            testResultBanner.textContent = `❌ YouTube rejected cookies: ${data.error || 'Cookies expired or flagged'}`
             healthIndicator.className = 'status-indicator error'
             healthIndicator.textContent = 'Flagged'
             showToast('YouTube verification failed.', 'error')
