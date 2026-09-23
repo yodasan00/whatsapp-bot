@@ -30,7 +30,10 @@ const OWNER_COMMANDS = [
     'broadcast',
     'gcast',
     'cookies',
-    'cookie'
+    'cookie',
+    'owner',
+    'ownermenu',
+    'ownerhelp'
 ]
 
 async function handleAdminCommand({ command, sock, jid, msg, sender }) {
@@ -41,6 +44,38 @@ async function handleAdminCommand({ command, sock, jid, msg, sender }) {
       }
 
       switch (command) {
+          case 'owner':
+          case 'ownermenu':
+          case 'ownerhelp': {
+              await sock.sendMessage(jid, {
+                  text:
+`👑 *YAADOBOT OWNER MENU*
+_Master Controls (Bot Owner Only)_
+
+━━━━━━━━━━━━
+📢 *GLOBAL BROADCAST*
+━━━━━━━━━━━━
+• *.send <msg>* :: Broadcast announcement to all groups
+• *.broadcast <msg>* :: Alias for .send
+• *.gcast <msg>* :: Alias for .send
+
+━━━━━━━━━━━━
+🍪 *YOUTUBE COOKIES*
+━━━━━━━━━━━━
+• *.cookies* :: Generate tokenized 2-hr cookie portal link
+• *.cookie* :: Alias for .cookies
+
+━━━━━━━━━━━━
+🛑 *EMERGENCY TOGGLE*
+━━━━━━━━━━━━
+• *.bot off* :: Disable bot globally (only YOU can use it)
+• *.bot on* :: Enable bot globally for everyone
+• *.botmsg <text>* :: Set custom maintenance message
+• *.botmsg off* :: Clear custom maintenance message`
+              })
+              return true
+          }
+
           case 'bot': {
             const arg = (msg.message?.conversation || msg.message?.extendedTextMessage?.text || '').split(' ')[1]?.toLowerCase()
             if (arg === 'off') {
@@ -156,15 +191,7 @@ _Commands for Group Admins & Moderators_
 ⚙️ *GROUP SETTINGS*
 ━━━━━━━━━━━━
 • *.disable* :: Turn bot OFF in this group
-• *.enable* :: Turn bot ON in this group
-
-━━━━━━━━━━━━
-👑 *OWNER COMMANDS*
-━━━━━━━━━━━━
-• *.send <msg>* :: Broadcast announcement to all groups
-• *.cookies* :: YouTube cookie management portal
-• *.bot <on/off>* :: Global emergency bot toggle
-• *.botmsg <text>* :: Custom message when bot is disabled`
+• *.enable* :: Turn bot ON in this group`
     })
     return true
   }
