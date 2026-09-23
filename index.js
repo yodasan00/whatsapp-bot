@@ -195,8 +195,8 @@ async function startBot() {
     }
 
     if (isGroup && mutedGroups.has(jid)) {
-        // If disabled, ONLY allow .enable or .admins
-        if (!text.startsWith('.enable') && !text.startsWith('.admins')) {
+        // If disabled, ONLY allow .enable or .admin / .admins
+        if (!text.startsWith('.enable') && !text.startsWith('.admin')) {
             return
         }
     }

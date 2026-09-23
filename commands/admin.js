@@ -8,6 +8,7 @@ const { isOwner } = require('../utils/owner')
 
 // ✅ ONLY these require admin privileges
 const ADMIN_COMMANDS = [
+  'admin',
   'admins',
   'disable',
   'enable',
@@ -156,6 +157,7 @@ async function handleAdminCommand({ command, sock, jid, msg, sender }) {
 
   try {
     switch (command) {
+      case 'admin':
       case 'admins': {
         const admins = getAdmins(metadata)
         await sock.sendMessage(jid, {
