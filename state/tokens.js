@@ -24,8 +24,12 @@ function verifyToken(jid, token) {
         tokenStore.delete(jid)
         return false
     }
+
+    if (typeof token !== 'string' || record.token.length !== token.length) {
+        return false
+    }
     
-    // Constant time comparison to prevent timing attacks (overkill here but good practice)
+    // Constant time comparison to prevent timing attacks
     return crypto.timingSafeEqual(Buffer.from(record.token), Buffer.from(token))
 }
 

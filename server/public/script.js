@@ -27,7 +27,7 @@ async function init() {
 
 async function fetchUserData() {
     try {
-        const res = await fetch(`${API_BASE}/api/user?jid=${userJid}&context=${context}&token=${token}`);
+        const res = await fetch(`${API_BASE}/api/user?jid=${encodeURIComponent(userJid)}&context=${encodeURIComponent(context)}&token=${encodeURIComponent(token)}`);
         
         const data = await res.json();
         

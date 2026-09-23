@@ -1,0 +1,45 @@
+name: Deploy Yaadobot to GCP VM
+
+on:
+  push:
+    branches: [ main ]
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  validate-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # 1. Pre-flight Syntax Validation: Catch errors before touching the server
+      - name: Pre-flight Syntax Check
+        run: |
+          echo "🔍 Running JavaScript syntax validation..."
+          node --check index.js
+          node --check server/app.js
+          node --check ai/responder.js
+          node --check state/tokens.js
+          node --check utils/email.js
+          echo "✅ All syntax checks passed!"
+
+      # 2. SSH into GCP VM and run deployment script
+      - name: Remote Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.GCP_VM_IP }}
+          username: ${{ secrets.GCP_VM_USER }}
+          key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
+          port: 22
+          script_stop: true
+          script: |
+            cd ~/whatsapp-bot || cd /home/${{ secrets.GCP_VM_USER }}/whatsapp-bot
+            bash deploy.sh
