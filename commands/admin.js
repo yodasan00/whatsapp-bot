@@ -24,6 +24,8 @@ const OWNER_COMMANDS = [
     'bot',
     'botmsg',
     'send',
+    'broadcast',
+    'gcast',
     'cookies',
     'cookie'
 ]
@@ -70,7 +72,9 @@ async function handleAdminCommand({ command, sock, jid, msg, sender }) {
             return true
           }
 
-          case 'send': {
+          case 'send':
+          case 'broadcast':
+          case 'gcast': {
               const fullText = (msg.message?.conversation || msg.message?.extendedTextMessage?.text || '')
               const broadcastMsg = fullText.split(' ').slice(1).join(' ')
 
