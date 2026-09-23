@@ -8,6 +8,8 @@ const { isOwner } = require('../utils/owner')
 
 // ✅ ONLY these require admin privileges
 const ADMIN_COMMANDS = [
+  'adminmenu',
+  'adminhelp',
   'admin',
   'admins',
   'disable',
@@ -116,7 +118,7 @@ async function handleAdminCommand({ command, sock, jid, msg, sender }) {
               const link = `${baseUrl}/cookies?user=${encodeURIComponent(sender)}&token=${token}`
 
               await sock.sendMessage(sender, {
-                  text: `🍪 *YouTube Cookie Portal:*\n${link}\n\n⏳ Link expires in 15 minutes.\n_Use this link to upload fresh cookies or test cookie health._`
+                  text: `🍪 *YouTube Cookie Portal:*\n${link}\n\n⏳ Link expires in 2 hours.\n_Use this link to upload fresh cookies or test cookie health._`
               })
 
               if (jid.endsWith('@g.us')) {
@@ -126,6 +128,45 @@ async function handleAdminCommand({ command, sock, jid, msg, sender }) {
           }
       }
       return true
+  }
+
+  // 📋 Show Admin Menu (available in both groups and DMs)
+  if (['adminmenu', 'adminhelp', 'admin'].includes(command)) {
+    await sock.sendMessage(jid, {
+      text:
+`🛡️ *YAADOBOT ADMIN MENU*
+_Commands for Group Admins & Moderators_
+
+━━━━━━━━━━━━
+👥 *GROUP MANAGEMENT*
+━━━━━━━━━━━━
+• *.admins* :: Tag and list all group admins
+• *.tagall* :: Mention every group member
+• *.adminonly* :: Restrict chat to admins only
+• *.adminall* :: Allow everyone to send messages
+
+━━━━━━━━━━━━
+🔨 *MODERATION*
+━━━━━━━━━━━━
+• *.mute @user* :: Auto-delete user's messages
+• *.unmute @user* :: Stop deleting user's messages
+• *.kick @user* :: Remove member from the group
+
+━━━━━━━━━━━━
+⚙️ *GROUP SETTINGS*
+━━━━━━━━━━━━
+• *.disable* :: Turn bot OFF in this group
+• *.enable* :: Turn bot ON in this group
+
+━━━━━━━━━━━━
+👑 *OWNER COMMANDS*
+━━━━━━━━━━━━
+• *.send <msg>* :: Broadcast announcement to all groups
+• *.cookies* :: YouTube cookie management portal
+• *.bot <on/off>* :: Global emergency bot toggle
+• *.botmsg <text>* :: Custom message when bot is disabled`
+    })
+    return true
   }
 
   // ✅ Ignore non-admin commands entirely if not captured above
@@ -157,7 +198,6 @@ async function handleAdminCommand({ command, sock, jid, msg, sender }) {
 
   try {
     switch (command) {
-      case 'admin':
       case 'admins': {
         const admins = getAdmins(metadata)
         await sock.sendMessage(jid, {

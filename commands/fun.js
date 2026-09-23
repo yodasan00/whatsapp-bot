@@ -1084,6 +1084,11 @@ _Created by @yaad_
 .dig        
 .fish 
 
+━━━━━━━━━━━━
+🛡️ *ADMINS*
+━━━━━━━━━━━━
+.adminmenu :: View all admin & mod commands
+
 _Type .help for details._
 _Just chat with me to use AI!_`
     })
