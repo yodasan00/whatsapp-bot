@@ -1,7 +1,12 @@
 function extractText(msg) {
+  const m = msg.message
   return (
-    msg.message?.conversation ||
-    msg.message?.extendedTextMessage?.text ||
+    m?.conversation ||
+    m?.extendedTextMessage?.text ||
+    m?.imageMessage?.caption ||
+    m?.videoMessage?.caption ||
+    m?.documentMessage?.caption ||
+    m?.documentWithCaptionMessage?.message?.documentMessage?.caption ||
     ''
   ).trim()
 }

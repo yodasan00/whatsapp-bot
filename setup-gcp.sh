@@ -29,9 +29,9 @@ fi
 echo "🔄 Updating apt packages..."
 sudo apt update && sudo apt upgrade -y
 
-# 3. Install Core Tools (Python3, venv, ffmpeg, git, curl)
+# 3. Install Core Tools (Python3, venv, ffmpeg, poppler-utils, git, curl)
 echo "📦 Installing system dependencies..."
-sudo apt install -y curl git python3 python3-pip python3-venv ffmpeg unzip psmisc
+sudo apt install -y curl git python3 python3-pip python3-venv ffmpeg poppler-utils unzip psmisc
 
 # 4. Install Node.js 20 LTS
 if ! command -v node &> /dev/null; then

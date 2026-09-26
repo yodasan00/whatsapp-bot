@@ -1063,6 +1063,7 @@ _Created by @yaad_
 .plays <song> :: Download Voice Note
 .video <song> :: Download Video MP4
 .sticker      :: Convert Image to Sticker
+.convert <fmt> :: Convert Media (video, audio, img, pdf, zip)
 .weather <city> :: Get Weather Status
 .lyrics <song>:: Get Lyrics
 .explain <topic>

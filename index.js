@@ -17,6 +17,7 @@ const { handleAdminCommand } = require('./commands/admin')
 const { handleEconomyCommand } = require('./commands/economy')
 const { handleGambleCommand } = require('./commands/gamble') // ⭐ Added this
 const { handleMediaCommand } = require('./commands/media') // ⭐ Added this
+const { handleConvertCommand } = require('./commands/convert')
 const { handleFunReactions } = require('./handlers/funReactions')
 const { handleGuessReply } = require('./games/guessNumber')
 const { handleMathReply } = require('./games/mathGame') // ⭐ Added this
@@ -233,7 +234,7 @@ async function startBot() {
 
     /* ---------- COMMANDS ---------- */
 
-    if (text.startsWith('.')) {
+    if (text.startsWith('.') || text.startsWith('!')) {
       const args = text.slice(1).split(/\s+/)
       const command = args.shift().toLowerCase()
 
@@ -241,6 +242,7 @@ async function startBot() {
       if (await handleEconomyCommand({ command, args, sock, jid, sender, msg })) return
       if (await handleGambleCommand({ command, args, sock, jid, sender })) return // ⭐ Added this
       if (await handleMediaCommand({ command, args, sock, jid, sender })) return // ⭐ Added this
+      if (await handleConvertCommand({ command, args, sock, jid, msg, sender })) return
       if (await handleAICommand({ command, args, sock, jid, msg })) return
       if (await handleFunCommand({ command, args, sock, jid, sender, msg })) return
     }

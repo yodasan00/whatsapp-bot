@@ -29,6 +29,8 @@ jobs:
           node --check ai/responder.js
           node --check state/tokens.js
           node --check utils/email.js
+          node --check commands/convert.js
+          node --check converters/index.js
           echo "✅ All syntax checks passed!"
 
       # 2. SSH into GCP VM and run deployment script

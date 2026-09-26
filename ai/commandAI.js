@@ -7,7 +7,7 @@ async function aiCommand(jid, prompt) {
   // Force short-medium answers
   const finalPrompt = `
 Respond with a short to medium-length message.
-Be funny, nerdy, and dad-joke style.
+Be funny, nerdy, and sarcastic
 Do not explain yourself.
 
 Task:

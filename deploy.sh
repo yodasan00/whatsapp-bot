@@ -36,11 +36,17 @@ if ! command -v deno &> /dev/null; then
     export PATH="$DENO_INSTALL/bin:$PATH"
 fi
 
-# 6. Clean up any orphaned microservice process on port 5005
+# 6. Ensure poppler-utils is installed (for PDF page extraction)
+if ! command -v pdftoppm &> /dev/null; then
+    echo "📄 Installing poppler-utils for PDF conversions..."
+    sudo apt-get update -y && sudo apt-get install -y poppler-utils || true
+fi
+
+# 7. Clean up any orphaned microservice process on port 5005
 echo "💀 Freeing microservice port 5005..."
 fuser -k 5005/tcp 2>/dev/null || true
 
-# 7. Restart via PM2
+# 8. Restart via PM2
 echo "🔄 Reloading PM2 process..."
 if pm2 list | grep -q "yaadobot"; then
     pm2 reload ecosystem.config.js || pm2 restart ecosystem.config.js
