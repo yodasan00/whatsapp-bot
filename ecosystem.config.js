@@ -6,8 +6,8 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
-      max_memory_restart: '600M', // Prevents RAM exhaustion on e2-micro (1GB RAM)
-      node_args: '--max-old-space-size=450',
+      max_memory_restart: process.env.PM2_MAX_MEMORY || '1200M',
+      node_args: process.env.NODE_MAX_OLD_SPACE || '--max-old-space-size=1024',
       env: {
         NODE_ENV: 'production'
       },
